@@ -1,0 +1,1818 @@
+/**
+ * Cotizador - Lógica Principal
+ * Maneja la interacción con la API de Catálogos y UI dinámica
+ */
+
+/**
+ * Cotizador Dinámico - v2.1.0
+ * Última actualización: 2024
+ * Fixed: Null reference errors on displayResults
+ */
+
+class CotizadorApp {
+  constructor(blockId, config) {
+    this.blockId = blockId;
+    this.config = config;
+    this.API_URL = 'https://s5mhb5u787.execute-api.us-east-1.amazonaws.com/qa';
+    this.API_KEY = 'unQSy6sApK5bPnIZFiqMZ2NDGgTTzIb6PRpkZ7Y1';
+    
+    // State
+    this.currentCategory = null;
+    this.catalogPath = [];
+    this.currentProduct = null;
+    this.currentLoanData = null;
+    this.selectedFrequency = null;
+    this.selectedTerm = null;
+    this.selectedPlan = 'tradicional';
+    
+    this.init();
+  }
+
+  init() {
+    // Category buttons - buscar por .category-item que es la clase real en el HTML
+    const categoryButtons = document.querySelectorAll(`#categories-${this.blockId} .category-item`);
+    
+    if (categoryButtons.length === 0) {
+      console.warn('⚠️ No se encontraron botones de categoría. Intentando con selector alternativo...');
+      // Fallback: intentar con cualquier botón dentro del contenedor
+      const fallbackButtons = document.querySelectorAll(`#categories-${this.blockId} button[data-category]`);
+      fallbackButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        this.selectCategory(btn.getAttribute('data-category'), btn);
+      });
+    });
+    } else {
+      categoryButtons.forEach((btn) => {
+        const category = btn.getAttribute('data-category');
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.selectCategory(category, btn);
+        });
+      });
+    }
+
+    // Plan buttons
+    document.getElementById(`btn-tradicional-${this.blockId}`).addEventListener('click', () => this.selectPlan('tradicional'));
+    document.getElementById(`btn-fijo-${this.blockId}`).addEventListener('click', () => this.selectPlan('fijo'));
+
+    // Continue button
+    const btnContinue = document.getElementById(`btn-continue-${this.blockId}`);
+    if (btnContinue) {
+      btnContinue.addEventListener('click', () => this.showContactForm());
+    }
+
+    // Simulate another button - se configura dinámicamente en displayResults
+    const btnSimulate = document.getElementById(`btn-simulate-${this.blockId}`);
+    if (btnSimulate) {
+      btnSimulate.addEventListener('click', () => this.resetSimulation());
+    }
+
+    // Modal - link-details ya no se usa, comentado
+    // const linkDetails = document.getElementById(`link-details-${this.blockId}`);
+    // if (linkDetails) {
+    //   linkDetails.addEventListener('click', (e) => {
+    //     e.preventDefault();
+    //     this.showPaymentDetails();
+    //   });
+    // }
+    
+    const modalClose = document.getElementById(`modal-close-${this.blockId}`);
+    if (modalClose) {
+      modalClose.addEventListener('click', () => this.closeModal());
+    }
+    
+    const modal = document.getElementById(`modal-${this.blockId}`);
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+      if (e.target.id === `modal-${this.blockId}`) this.closeModal();
+    });
+    }
+
+    // Form
+    const form = document.getElementById(`cotizador-form-${this.blockId}`);
+    if (form) {
+      form.addEventListener('submit', (e) => this.handleSubmit(e));
+    }
+
+    // Reset button (Success Panel)
+    const resetBtn = document.getElementById(`btn-reset-${this.blockId}`);
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => this.resetAll());
+    }
+
+    // Reset catalog button (Details Panel) - ahora es un link
+    const resetCatalogBtn = document.getElementById(`btn-reset-catalog-${this.blockId}`);
+    if (resetCatalogBtn) {
+      resetCatalogBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.resetCatalog();
+      });
+    }
+  }
+
+  resetCatalog() {
+    this.catalogPath = [];
+    this.currentCategory = null;
+    this.updateDetailsPanel();
+    
+    // Mostrar título y descripción nuevamente
+    const header = document.querySelector(`#cotizador-${this.blockId} .cotizador-header`);
+    if (header) {
+      header.style.display = 'flex';
+    }
+    
+    // Limpiar dropdowns y grid
+    const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+    const itemsDiv = document.getElementById(`catalog-items-${this.blockId}`);
+    
+    if (dropdownsContainer) dropdownsContainer.innerHTML = '';
+    if (itemsDiv) itemsDiv.innerHTML = '';
+    
+    document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
+    document.getElementById(`categories-${this.blockId}`).style.display = 'grid';
+    document.querySelectorAll(`#categories-${this.blockId} .category-item`).forEach(btn => btn.classList.remove('active'));
+  }
+
+  selectCategory(category, button) {
+    this.currentCategory = category;
+    this.catalogPath = [];
+    
+    // Remover active de todos los botones
+    document.querySelectorAll(`#categories-${this.blockId} .category-item`).forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    // Agregar active al botón seleccionado
+    if (button) {
+    button.classList.add('active');
+    }
+    
+    // Ocultar título y descripción cuando se muestra la segunda pantalla
+    const header = document.querySelector(`#cotizador-${this.blockId} .cotizador-header`);
+    if (header) {
+      header.style.display = 'none';
+    }
+    
+    // Mostrar navegación de catálogo y ocultar categorías
+    const catalogNav = document.getElementById(`catalog-nav-${this.blockId}`);
+    const mainPanels = document.getElementById(`main-panels-${this.blockId}`);
+    const categoriesDiv = document.getElementById(`categories-${this.blockId}`);
+    const transitionLoader = document.getElementById(`screen-transition-loader-${this.blockId}`);
+    
+    if (catalogNav) {
+      catalogNav.style.display = 'block';
+      catalogNav.style.visibility = 'visible';
+      
+      // Mostrar loader de transición
+      if (transitionLoader) {
+        transitionLoader.style.display = 'flex';
+      }
+    } else {
+      console.error('❌ No se encontró catalog-nav');
+    }
+    
+    if (mainPanels) mainPanels.style.display = 'none';
+    if (categoriesDiv) categoriesDiv.style.display = 'none';
+    
+    // Actualizar panel de detalles con la categoría seleccionada
+    this.updateDetailsPanel();
+    
+    // Mapeo de categorías a catalog IDs
+    const catalogIds = {
+      'metals': 'metal_gold_catalog',
+      'watches': 'metal_gold_catalog', // Los relojes usan el mismo catálogo que metales
+      'diamonds': 'diamond_color_catalog',
+      'electronics': 'subcategory_miscellaneous',
+      'celulares': 'subcategory_miscellaneous',
+      'laptops': 'subcategory_miscellaneous',
+      'tablets': 'subcategory_miscellaneous',
+      'smartwatch': 'subcategory_miscellaneous',
+      'consoles': 'subcategory_miscellaneous',
+      'others': 'subcategory_miscellaneous',
+      'vehicles': 'subcategory_vehicles',
+      'auto_financing': 'subcategory_vehicles'
+    };
+    
+    const catalogId = catalogIds[category];
+    
+    if (!catalogId) {
+      console.error('❌ No se encontró catalogId para la categoría:', category);
+      alert(`Categoría "${category}" no está configurada. Por favor contacta al administrador.`);
+      return;
+    }
+    
+    this.loadCatalog(catalogId, {});
+  }
+
+  async loadCatalog(catalogId, params) {
+    const loadingDiv = document.getElementById(`loading-${this.blockId}`);
+    const itemsDiv = document.getElementById(`catalog-items-${this.blockId}`);
+    const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+    
+    if (!loadingDiv) {
+      console.error('❌ No se encontró loadingDiv');
+      return;
+    }
+    
+    // Ocultar dropdowns COMPLETAMENTE antes de mostrar loader
+    if (dropdownsContainer) {
+      // Guardar la altura del wrapper del dropdown si existe
+      const dropdownWrapper = dropdownsContainer.querySelector('.catalog-dropdown-wrapper');
+      let savedHeight = '150px'; // Altura por defecto
+      
+      if (dropdownWrapper && dropdownWrapper.offsetHeight > 0) {
+        savedHeight = dropdownWrapper.offsetHeight + 'px';
+      } else if (dropdownsContainer.offsetHeight > 0) {
+        savedHeight = dropdownsContainer.offsetHeight + 'px';
+      }
+      
+      // Ocultar COMPLETAMENTE el contenedor de dropdowns
+      dropdownsContainer.style.display = 'none';
+      dropdownsContainer.style.visibility = 'hidden';
+      dropdownsContainer.style.opacity = '0';
+      
+      // Configurar el loader para ocupar EXACTAMENTE el mismo espacio
+      loadingDiv.style.minHeight = savedHeight;
+    } else {
+      // Si no hay contenedor, usar altura por defecto
+      loadingDiv.style.minHeight = '150px';
+    }
+    
+    if (itemsDiv) {
+      itemsDiv.style.display = 'none';
+      itemsDiv.style.visibility = 'hidden';
+    }
+    
+    // Mostrar loader centrado - FORZAR con !important
+    loadingDiv.style.setProperty('display', 'flex', 'important');
+    loadingDiv.style.setProperty('flex-direction', 'column', 'important');
+    loadingDiv.style.setProperty('align-items', 'center', 'important');
+    loadingDiv.style.setProperty('justify-content', 'center', 'important');
+    loadingDiv.style.setProperty('visibility', 'visible', 'important');
+    loadingDiv.style.setProperty('opacity', '1', 'important');
+    loadingDiv.style.setProperty('z-index', '100', 'important');
+    loadingDiv.style.setProperty('background', 'transparent', 'important');
+    
+    // Ocultar skeleton si existe
+    const skeletonLoader = loadingDiv.querySelector('.skeleton-loader');
+    if (skeletonLoader) {
+      skeletonLoader.style.setProperty('display', 'none', 'important');
+    }
+    
+    // Mostrar solo el spinner
+    const spinnerLoader = loadingDiv.querySelector('.spinner-loader');
+    if (spinnerLoader) {
+      spinnerLoader.style.setProperty('display', 'flex', 'important');
+      spinnerLoader.style.setProperty('visibility', 'visible', 'important');
+      spinnerLoader.style.setProperty('opacity', '1', 'important');
+      
+      // Asegurar que el spinner interno esté visible
+      const spinner = spinnerLoader.querySelector('.spinner');
+      if (spinner) {
+        spinner.style.setProperty('display', 'block', 'important');
+        spinner.style.setProperty('visibility', 'visible', 'important');
+        spinner.style.setProperty('opacity', '1', 'important');
+        spinner.style.setProperty('width', '56px', 'important');
+        spinner.style.setProperty('height', '56px', 'important');
+        spinner.style.setProperty('min-width', '56px', 'important');
+        spinner.style.setProperty('min-height', '56px', 'important');
+        spinner.style.setProperty('border-width', '4px', 'important');
+      }
+    }
+    
+    // Verificar el contenedor padre
+    const parentPanel = loadingDiv.closest('.catalog-navigation-panel');
+    if (parentPanel && getComputedStyle(parentPanel).display === 'none') {
+      parentPanel.style.setProperty('display', 'flex', 'important');
+      parentPanel.style.setProperty('visibility', 'visible', 'important');
+    }
+    
+    // Forzar reflow para asegurar renderizado
+    loadingDiv.offsetHeight;
+    
+    try {
+      // Detectar si es catálogo de vehículos (catalog-ext) o estándar (catalog)
+      const isVehicleCatalog = catalogId === 'subcategory_vehicles' || 
+                               catalogId === 'year_vehicles' || 
+                               catalogId === 'brand_vehicles' || 
+                               catalogId === 'model_vehicles' || 
+                               catalogId === 'version_vehicles';
+      const endpoint = isVehicleCatalog ? '/simulator/catalog-ext' : '/simulator/catalog';
+      
+      const requestBody = {
+        catalog_id: catalogId,
+        data: { user_id: '', prospect_flag: false, ...params }
+      };
+      
+      const response = await fetch(`${this.API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.API_KEY
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      
+      // Ocultar loader de transición
+      const transitionLoader = document.getElementById(`screen-transition-loader-${this.blockId}`);
+      if (transitionLoader) {
+        transitionLoader.style.display = 'none';
+      }
+      
+      if (!result.catalog || !result.catalog.data || result.catalog.data.length === 0) {
+        loadingDiv.style.setProperty('display', 'none', 'important');
+        this.calculateAndShowResults();
+        return;
+      }
+      
+      // Ocultar loader PRIMERO
+      loadingDiv.style.setProperty('display', 'none', 'important');
+      loadingDiv.style.minHeight = ''; // Limpiar altura mínima
+      
+      // Llamar a displayCatalog que mostrará el nuevo dropdown (sin delay innecesario)
+      this.displayCatalog(result.catalog);
+      this.updateBreadcrumb();
+      this.updateDetailsPanel();
+      
+    } catch (error) {
+      console.error('❌ Error completo:', error);
+      console.error('❌ Error stack:', error.stack);
+      
+      // Ocultar loaders y mostrar error
+      const transitionLoader = document.getElementById(`screen-transition-loader-${this.blockId}`);
+      if (transitionLoader) {
+        transitionLoader.style.setProperty('display', 'none', 'important');
+      }
+      loadingDiv.style.setProperty('display', 'none', 'important');
+      
+      // Mostrar error en el contenedor de dropdowns si existe
+      if (dropdownsContainer) {
+        dropdownsContainer.innerHTML = `<p style="text-align: center; color: #e74c3c; padding: 2rem;">Error cargando catálogo<br><small>${error.message}</small></p>`;
+        dropdownsContainer.style.display = 'flex';
+      } else if (itemsDiv) {
+        itemsDiv.innerHTML = `<p style="text-align: center; color: #e74c3c; padding: 2rem;">Error cargando catálogo<br><small>${error.message}</small></p>`;
+        itemsDiv.style.display = 'block';
+      }
+    } finally {
+      // NO ocultar el loader aquí automáticamente - ya se oculta en los casos de éxito/error
+      // Solo limpiar altura mínima si es necesario
+      // El loader se oculta explícitamente en los casos de éxito o error arriba
+    }
+  }
+
+  displayCatalog(catalog) {
+    try {
+      if (!catalog) {
+        console.error('❌ Catalog es null o undefined');
+        return;
+      }
+      
+      const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+    const itemsDiv = document.getElementById(`catalog-items-${this.blockId}`);
+      const helpText = document.getElementById(`dropdown-help-${this.blockId}`);
+      
+      if (!dropdownsContainer) {
+        console.error('❌ No se encontró el contenedor de dropdowns');
+        return;
+      }
+      
+      // Ocultar grid y loader COMPLETAMENTE antes de mostrar dropdown
+      if (itemsDiv) {
+        itemsDiv.style.display = 'none';
+        itemsDiv.style.visibility = 'hidden';
+      }
+      
+      const loadingDiv = document.getElementById(`loading-${this.blockId}`);
+      let savedLoaderHeight = '';
+      if (loadingDiv) {
+        // Guardar la altura del loader antes de ocultarlo
+        savedLoaderHeight = loadingDiv.style.minHeight || '';
+        // Ocultar COMPLETAMENTE el loader
+        loadingDiv.style.display = 'none';
+        loadingDiv.style.visibility = 'hidden';
+        loadingDiv.style.opacity = '0';
+        loadingDiv.style.minHeight = ''; // Limpiar altura mínima
+      }
+      
+      // Ocultar TODOS los dropdowns anteriores antes de mostrar el nuevo
+      const existingDropdowns = dropdownsContainer.querySelectorAll('.catalog-dropdown-wrapper');
+      existingDropdowns.forEach(wrapper => {
+        wrapper.style.display = 'none';
+        wrapper.style.visibility = 'hidden';
+        wrapper.style.opacity = '0';
+      });
+      
+      // Mostrar contenedor de dropdowns en la MISMA posición
+      dropdownsContainer.style.display = 'flex';
+      dropdownsContainer.style.flexDirection = 'column';
+      dropdownsContainer.style.width = '100%';
+      dropdownsContainer.style.maxWidth = '620px';
+      dropdownsContainer.style.alignItems = 'flex-start';
+      dropdownsContainer.style.visibility = 'visible';
+      dropdownsContainer.style.opacity = '1';
+      dropdownsContainer.style.margin = '0 auto';
+      dropdownsContainer.style.position = 'relative';
+      dropdownsContainer.style.zIndex = '5';
+      
+      // Mantener la misma altura mínima que tenía el loader si existe
+      if (savedLoaderHeight) {
+        dropdownsContainer.style.minHeight = savedLoaderHeight;
+      }
+      
+      // Verificar datos del catálogo
+      if (!catalog.data || catalog.data.length === 0) {
+        console.warn('⚠️ Catálogo vacío o sin datos');
+        dropdownsContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 2rem;">No hay opciones disponibles</p>';
+        return;
+      }
+      
+      // Mostrar texto de ayuda para ciertos catálogos
+      if (helpText) {
+        const showHelpCatalogs = ['brand_catalog', 'model_catalog'];
+        if (catalog.catalog_id && showHelpCatalogs.includes(catalog.catalog_id)) {
+          helpText.style.display = 'block';
+        } else {
+          helpText.style.display = 'none';
+        }
+      }
+      
+      // Determinar el label del dropdown basado en el catalogId
+      const dropdownLabel = this.getDropdownLabel(catalog.catalog_id);
+      
+      // Crear nuevo dropdown (siempre crear uno nuevo, los anteriores ya están ocultos)
+      const dropdownWrapper = document.createElement('div');
+      dropdownWrapper.className = 'catalog-dropdown-wrapper';
+      dropdownWrapper.style.width = '100%';
+      dropdownWrapper.style.display = 'flex';
+      dropdownWrapper.style.flexDirection = 'column';
+      dropdownWrapper.style.visibility = 'visible';
+      dropdownWrapper.style.opacity = '1';
+      
+      const labelElement = document.createElement('label');
+      labelElement.className = 'dropdown-label';
+      labelElement.textContent = dropdownLabel;
+      dropdownWrapper.appendChild(labelElement);
+      
+      const dropdown = document.createElement('select');
+      dropdown.className = 'catalog-dropdown';
+      dropdown.id = `dropdown-${catalog.catalog_id}-${this.blockId}`;
+      dropdown.disabled = false;
+      
+      const defaultOption = document.createElement('option');
+      defaultOption.value = '';
+      defaultOption.textContent = this.getDropdownPlaceholder(catalog.catalog_id);
+      dropdown.appendChild(defaultOption);
+      
+      catalog.data.forEach((item, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = item.name + (item.description ? ` - ${item.description}` : '');
+        option.dataset.item = JSON.stringify(item);
+        dropdown.appendChild(option);
+      });
+      
+      dropdownWrapper.appendChild(dropdown);
+      dropdownsContainer.appendChild(dropdownWrapper);
+      
+      // Asegurar visibilidad final con múltiples métodos
+      dropdownsContainer.style.display = 'flex';
+      dropdownsContainer.style.flexDirection = 'column';
+      dropdownsContainer.style.visibility = 'visible';
+      dropdownsContainer.style.opacity = '1';
+      dropdownsContainer.style.width = '100%';
+      dropdownsContainer.style.maxWidth = '620px';
+      dropdownsContainer.style.alignItems = 'flex-start';
+      dropdownsContainer.setAttribute('style', 
+        'display: flex !important; ' +
+        'flex-direction: column !important; ' +
+        'visibility: visible !important; ' +
+        'opacity: 1 !important; ' +
+        'width: 100% !important; ' +
+        'max-width: 620px !important; ' +
+        'align-items: flex-start !important;'
+      );
+      
+      // Forzar reflow para asegurar que el navegador renderice
+      dropdownsContainer.offsetHeight;
+      
+      // Verificar que el padre también esté visible
+      const parentPanel = dropdownsContainer.closest('.catalog-navigation-panel');
+      if (parentPanel) {
+        parentPanel.style.display = 'flex';
+        parentPanel.style.visibility = 'visible';
+      }
+      
+      this.attachDropdownListener(dropdown, catalog.data, catalog.catalog_id);
+      
+    } catch (error) {
+      console.error('❌ Error en displayCatalog:', error);
+      // Intentar mostrar error en UI
+      const container = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+      if (container) {
+        container.innerHTML = `<p style="color: red">Error visualizando opciones: ${error.message}</p>`;
+        container.style.display = 'block';
+      }
+    }
+  }
+
+  attachDropdownListener(dropdown, catalogData, catalogId) {
+    // Guardar referencia al catalog.data para usar como fallback
+    const catalogDataRef = catalogData;
+    const catalogIdRef = catalogId;
+    
+    // Remover listeners anteriores si existen
+    const newDropdown = dropdown.cloneNode(true);
+    newDropdown.disabled = false; // Asegurar que el nuevo dropdown esté habilitado
+    dropdown.parentNode.replaceChild(newDropdown, dropdown);
+    
+    // Agregar event listener al nuevo dropdown
+    newDropdown.addEventListener('change', (e) => {
+      const selectedIndex = e.target.value;
+      if (selectedIndex === '') return;
+      
+      const index = parseInt(selectedIndex);
+      
+      // Intentar obtener el item del dataset primero
+      const selectedOption = e.target.options[index + 1]; // +1 porque el índice 0 es la opción por defecto
+      let itemData = null;
+      
+      if (selectedOption && selectedOption.dataset.item) {
+        try {
+          itemData = JSON.parse(selectedOption.dataset.item);
+        } catch (error) {
+          console.warn('⚠️ Error parseando dataset, usando fallback:', error);
+        }
+      }
+      
+      // Fallback: obtener directamente del array catalog.data
+      if (!itemData && catalogDataRef && catalogDataRef[index]) {
+        itemData = catalogDataRef[index];
+      }
+      
+      if (!itemData) {
+        console.error('❌ No se pudo obtener el item seleccionado');
+        console.error('❌ Index:', index);
+        console.error('❌ Opción seleccionada:', selectedOption);
+        console.error('❌ Catalog data disponible:', !!catalogDataRef);
+        return;
+      }
+      
+      // Ocultar el dropdown actual cuando se selecciona una opción
+      const dropdownWrapper = newDropdown.closest('.catalog-dropdown-wrapper');
+      if (dropdownWrapper) {
+        dropdownWrapper.style.display = 'none';
+        dropdownWrapper.style.visibility = 'hidden';
+        dropdownWrapper.style.opacity = '0';
+      }
+      
+      // Ocultar el texto de ayuda cuando se selecciona una opción
+      const helpText = document.getElementById(`dropdown-help-${this.blockId}`);
+      if (helpText) {
+        helpText.style.display = 'none';
+        helpText.style.visibility = 'hidden';
+        helpText.style.opacity = '0';
+      }
+      
+      // Deshabilitar el dropdown temporalmente para evitar múltiples clicks
+      newDropdown.disabled = true;
+      
+      console.log(`🔘 Dropdown cambiado! Item seleccionado:`, itemData);
+      console.log(`🔘 CatalogId:`, catalogIdRef);
+      console.log(`🔘 Llamando a selectCatalogItem...`);
+      
+      // Llamar a selectCatalogItem que actualizará el panel izquierdo y cargará el siguiente catálogo
+      try {
+        this.selectCatalogItem(itemData, catalogIdRef);
+      } catch (error) {
+        console.error(`❌ Error en selectCatalogItem:`, error);
+      }
+    });
+  }
+
+  getDropdownLabel(catalogId) {
+    const labels = {
+      'subcategory_miscellaneous': 'Tipo de artículo',
+      'brand_catalog': '¿De que marca es tu articulo?',
+      'model_catalog': '¿De que modelo es tu articulo?',
+      'feature_1_catalog': 'Característica 1',
+      'feature_2_catalog': 'Característica 2',
+      'feature_3_catalog': 'Característica 3',
+      'metal_gold_catalog': 'Tipo de metal',
+      'metal_silver_catalog': 'Tipo de metal',
+      'diamond_color_catalog': 'Color',
+      'diamond_clarity_catalog': 'Claridad',
+      'diamond_size_catalog': 'Tamaño',
+      'subcategory_vehicles': 'Tipo de vehículo',
+      'year_vehicles': 'Año',
+      'brand_vehicles': '¿De que marca es tu articulo?',
+      'model_vehicles': '¿De que modelo es tu articulo?',
+      'version_vehicles': 'Versión'
+    };
+    
+    return labels[catalogId] || 'Selecciona una opción';
+  }
+
+  getDropdownPlaceholder(catalogId) {
+    const placeholders = {
+      'subcategory_miscellaneous': 'Selecciona una opción',
+      'brand_catalog': 'Ingrese marca',
+      'model_catalog': 'Ingrese modelo',
+      'feature_1_catalog': 'Selecciona una opción',
+      'feature_2_catalog': 'Selecciona una opción',
+      'feature_3_catalog': 'Selecciona una opción',
+      'brand_vehicles': 'Ingrese marca',
+      'model_vehicles': 'Ingrese modelo'
+    };
+    
+    return placeholders[catalogId] || 'Selecciona una opción';
+  }
+
+  selectCatalogItem(item, catalogId) {
+    console.log(`🎯 selectCatalogItem llamado con:`, item.name, catalogId);
+    this.catalogPath.push({ ...item, catalogId });
+    console.log(`📦 CatalogPath ahora tiene ${this.catalogPath.length} items:`, this.catalogPath.map(i => i.name));
+    
+    // Actualizar panel de detalles inmediatamente
+    console.log(`🔄 Llamando a updateDetailsPanel...`);
+    console.log(`🔍 Verificando método:`, typeof this.updateDetailsPanel);
+    console.log(`🔍 Contexto this:`, this);
+    try {
+      if (typeof this.updateDetailsPanel === 'function') {
+        console.log(`✅ Método existe, ejecutando...`);
+        const result = this.updateDetailsPanel();
+        console.log(`✅ updateDetailsPanel ejecutado, resultado:`, result);
+      } else {
+        console.error(`❌ updateDetailsPanel no es una función!`);
+      }
+    } catch (error) {
+      console.error(`❌ ERROR CAPTURADO en updateDetailsPanel:`, error);
+      console.error(`❌ Mensaje:`, error.message);
+      console.error(`❌ Stack:`, error.stack);
+    }
+    
+    // Determinar el siguiente catálogo basándose en el catalogId actual
+    const nextCatalog = this.getNextCatalog(catalogId, item);
+    
+    if (nextCatalog) {
+      this.loadCatalog(nextCatalog.catalogId, nextCatalog.params);
+    } else {
+      this.calculateAndShowResults();
+    }
+  }
+
+  updateDetailsPanel() {
+    console.log(`🚀🚀🚀 updateDetailsPanel() EJECUTÁNDOSE AHORA!!!`);
+    console.log(`🔍🔍🔍 updateDetailsPanel() INICIANDO...`);
+    console.log(`🔍 Buscando elemento: details-content-${this.blockId}`);
+    console.log(`🔍 BlockId: ${this.blockId}`);
+    console.log(`🔍 CatalogPath:`, this.catalogPath);
+    
+    try {
+      console.log(`🔍 Dentro del try, buscando elemento...`);
+      const detailsPanel = document.getElementById(`details-content-${this.blockId}`);
+      console.log(`🔍 Elemento encontrado:`, detailsPanel);
+    
+    if (!detailsPanel) {
+      console.error(`❌ ERROR: No se encontró el panel de detalles: details-content-${this.blockId}`);
+      console.error(`❌ BlockId actual: ${this.blockId}`);
+      // Intentar buscar el elemento de otra forma
+      const altPanel = document.querySelector(`[id*="details-content"]`);
+      if (altPanel) {
+        console.warn(`⚠️ Encontrado elemento alternativo:`, altPanel.id);
+      } else {
+        console.error(`❌ No se encontró ningún elemento con 'details-content' en el ID`);
+      }
+      return;
+    }
+    
+    console.log(`✅ Panel encontrado!`, detailsPanel);
+    console.log(`📝 Actualizando panel de detalles. CatalogPath length: ${this.catalogPath.length}`);
+    
+    // Si no hay selecciones aún, mostrar estado vacío
+    if (this.catalogPath.length === 0) {
+      detailsPanel.innerHTML = `
+        <div class="details-empty-state">
+          Selecciona las opciones para ver el detalle de tu cotización
+        </div>
+      `;
+      return;
+    }
+    
+    // Mapeo de catalogIds a etiquetas
+    const catalogLabels = {
+      'subcategory_miscellaneous': 'Tipo de artículo',
+      'brand_catalog': 'Marca',
+      'model_catalog': 'Modelo',
+      'feature_1_catalog': 'Característica',
+      'feature_2_catalog': 'Característica',
+      'feature_3_catalog': 'Característica',
+      'metal_gold_catalog': 'Tipo de Metal',
+      'metal_silver_catalog': 'Tipo de Metal',
+      'diamond_color_catalog': 'Color',
+      'diamond_clarity_catalog': 'Claridad',
+      'diamond_size_catalog': 'Tamaño',
+      'subcategory_vehicles': 'Tipo de Vehículo',
+      'year_vehicles': 'Año',
+      'brand_vehicles': 'Marca',
+      'model_vehicles': 'Modelo',
+      'version_vehicles': 'Versión'
+    };
+    
+    // Construir HTML con los detalles seleccionados
+    let html = '<h3 class="details-title">Detalle de tu artículo</h3>';
+    html += '<div class="details-items">';
+    
+    this.catalogPath.forEach((item, index) => {
+      let label = catalogLabels[item.catalogId];
+      
+      if (!label) {
+        if (item.brand_id) label = 'Marca';
+        else if (item.charat1_id || item.charat2_id || item.charat3_id) label = 'Característica';
+        else if (item.model_id) label = 'Modelo';
+      }
+      
+      if (label && item.name) {
+        html += `
+          <div class="detail-item" data-step-index="${index}">
+            <span class="detail-label">${label}:</span>
+            <span class="detail-value">${item.name}</span>
+          </div>
+        `;
+        console.log(`✅ Agregando detalle: ${label} - ${item.name}`);
+      } else {
+        console.warn(`⚠️ Item sin label o name:`, item);
+      }
+    });
+    
+    html += '</div>';
+    detailsPanel.innerHTML = html;
+    console.log(`✅ Panel de detalles actualizado con ${this.catalogPath.length} items`);
+    
+    // Actualizar progress stepper
+    const progressStepper = document.getElementById(`progress-stepper-${this.blockId}`);
+    if (progressStepper) {
+      const steps = progressStepper.querySelectorAll('.progress-step');
+      steps.forEach((step, index) => {
+        if (index < this.catalogPath.length) {
+          step.classList.add('active');
+        } else {
+          step.classList.remove('active');
+        }
+      });
+    }
+    
+    // Hacer los items clickeables para volver a ese paso
+    const detailItems = detailsPanel.querySelectorAll('.detail-item');
+    detailItems.forEach((item, index) => {
+      item.style.cursor = 'pointer';
+      // Remover listeners anteriores para evitar duplicados
+      const newItem = item.cloneNode(true);
+      item.parentNode.replaceChild(newItem, item);
+      newItem.addEventListener('click', () => {
+        this.goToStep(index);
+      });
+    });
+    } catch (error) {
+      console.error(`❌ ERROR dentro de updateDetailsPanel:`, error);
+      console.error(`❌ Stack:`, error.stack);
+    }
+  }
+
+  getNextCatalog(currentCatalogId, currentItem) {
+    // Flujo para electrónicos (subcategory_miscellaneous)
+    if (currentCatalogId === 'subcategory_miscellaneous') {
+      // El siguiente es brand_catalog, necesita id_pledge_lakin
+      const id_pledge_lakin = currentItem.id_pledge_Lakin || 
+                              currentItem.id_pledge_lakin || 
+                              currentItem.child_ids?.find(c => c.name === 'id_pledge_lakin')?.value ||
+                              60; // default
+      
+      return {
+        catalogId: 'brand_catalog',
+        params: { id_pledge_lakin: id_pledge_lakin }
+      };
+    }
+    
+    // Flujo para marcas (brand_catalog)
+    if (currentCatalogId === 'brand_catalog') {
+      // El siguiente es model_catalog, necesita id_pledge_lakin y brand_id
+      const pathItem = this.catalogPath.find(p => p.catalogId === 'subcategory_miscellaneous');
+      const id_pledge_lakin = pathItem?.id_pledge_Lakin || 
+                              pathItem?.id_pledge_lakin || 
+                              pathItem?.child_ids?.find(c => c.name === 'id_pledge_lakin')?.value ||
+                              60;
+      
+      return {
+        catalogId: 'model_catalog',
+        params: { 
+          id_pledge_lakin: id_pledge_lakin,
+          brand_id: currentItem.brand_id || ''
+        }
+      };
+    }
+    
+    // Flujo para modelos (model_catalog)
+    if (currentCatalogId === 'model_catalog') {
+      // El siguiente es feature_1_catalog
+      const pathItem = this.catalogPath.find(p => p.catalogId === 'subcategory_miscellaneous');
+      const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_catalog');
+      const id_pledge_lakin = pathItem?.id_pledge_Lakin || 
+                              pathItem?.id_pledge_lakin || 
+                              pathItem?.child_ids?.find(c => c.name === 'id_pledge_lakin')?.value ||
+                              60;
+      
+      return {
+        catalogId: 'feature_1_catalog',
+        params: { 
+          id_pledge_lakin: id_pledge_lakin,
+          brand_id: brandItem?.brand_id || '',
+          model_id: currentItem.model_id || ''
+        }
+      };
+    }
+    
+    // Flujo para características 1 (feature_1_catalog)
+    if (currentCatalogId === 'feature_1_catalog') {
+      // El siguiente es feature_2_catalog
+      const pathItem = this.catalogPath.find(p => p.catalogId === 'subcategory_miscellaneous');
+      const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_catalog');
+      const modelItem = this.catalogPath.find(p => p.catalogId === 'model_catalog');
+      const id_pledge_lakin = pathItem?.id_pledge_Lakin || 
+                              pathItem?.id_pledge_lakin || 
+                              pathItem?.child_ids?.find(c => c.name === 'id_pledge_lakin')?.value ||
+                              60;
+      
+      return {
+        catalogId: 'feature_2_catalog',
+        params: { 
+          id_pledge_lakin: id_pledge_lakin,
+          brand_id: brandItem?.brand_id || '',
+          model_id: modelItem?.model_id || '',
+          charat1_id: currentItem.charat1_id || ''
+        }
+      };
+    }
+    
+    // Flujo para características 2 (feature_2_catalog)
+    if (currentCatalogId === 'feature_2_catalog') {
+      // El siguiente es feature_3_catalog
+      const pathItem = this.catalogPath.find(p => p.catalogId === 'subcategory_miscellaneous');
+      const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_catalog');
+      const modelItem = this.catalogPath.find(p => p.catalogId === 'model_catalog');
+      const feature1Item = this.catalogPath.find(p => p.catalogId === 'feature_1_catalog');
+      const id_pledge_lakin = pathItem?.id_pledge_Lakin || 
+                              pathItem?.id_pledge_lakin || 
+                              pathItem?.child_ids?.find(c => c.name === 'id_pledge_lakin')?.value ||
+                              60;
+      
+      return {
+        catalogId: 'feature_3_catalog',
+        params: { 
+          id_pledge_lakin: id_pledge_lakin,
+          brand_id: brandItem?.brand_id || '',
+          model_id: modelItem?.model_id || '',
+          charat1_id: feature1Item?.charat1_id || '',
+          charat2_id: currentItem.charat2_id || ''
+        }
+      };
+    }
+    
+    // Flujo para vehículos
+    if (currentCatalogId === 'subcategory_vehicles') {
+      return {
+        catalogId: 'year_vehicles',
+        params: {}
+      };
+    }
+    
+    if (currentCatalogId === 'year_vehicles') {
+      return {
+        catalogId: 'brand_vehicles',
+        params: { year: currentItem.id || currentItem.name }
+      };
+    }
+    
+    if (currentCatalogId === 'brand_vehicles') {
+      const yearItem = this.catalogPath.find(p => p.catalogId === 'year_vehicles');
+      return {
+        catalogId: 'model_vehicles',
+        params: { 
+          year: yearItem?.id || yearItem?.name,
+          brand: currentItem.id
+        }
+      };
+    }
+    
+    if (currentCatalogId === 'model_vehicles') {
+      const yearItem = this.catalogPath.find(p => p.catalogId === 'year_vehicles');
+      const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_vehicles');
+      return {
+        catalogId: 'version_vehicles',
+        params: { 
+          year: yearItem?.id || yearItem?.name,
+          brand: brandItem?.id,
+          model: currentItem.id
+        }
+      };
+    }
+    
+    // Si el item tiene child directo, usarlo
+    if (currentItem.child && currentItem.child !== false && currentItem.child !== 'false') {
+      const params = this.extractParamsFromPath();
+      return {
+        catalogId: currentItem.child,
+        params: params
+      };
+    }
+    
+    // No hay más niveles
+    return null;
+  }
+
+  extractParamsFromPath() {
+    const params = {};
+    this.catalogPath.forEach(item => {
+      if (item.child_ids && Array.isArray(item.child_ids)) {
+        item.child_ids.forEach(child => {
+          if (child.name && child.value) params[child.name] = child.value;
+          if (child.name && child.id) params[child.name] = child.id;
+        });
+      }
+      if (item.id_pledge_Lakin) params.id_pledge_lakin = item.id_pledge_Lakin;
+      if (item.id_pledge_lakin) params.id_pledge_lakin = item.id_pledge_lakin;
+      if (item.brand_id) params.brand_id = item.brand_id;
+      if (item.model_id) params.model_id = item.model_id;
+      if (item.charat1_id) params.charat1_id = item.charat1_id;
+      if (item.charat2_id) params.charat2_id = item.charat2_id;
+      if (item.catalogId === 'year_vehicles') params.year = item.id || item.name;
+      if (item.catalogId === 'brand_vehicles') params.brand = item.id;
+      if (item.catalogId === 'model_vehicles') params.model = item.id;
+    });
+    return params;
+  }
+
+  async calculateAndShowResults() {
+    // Mostrar loader con mensaje mientras se calculan los resultados
+    const loadingDiv = document.getElementById(`loading-${this.blockId}`);
+    const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+    
+    if (loadingDiv && dropdownsContainer) {
+      // Ocultar dropdowns y mostrar loader
+      dropdownsContainer.style.display = 'none';
+      
+      // Configurar loader centrado con mensaje
+      loadingDiv.style.setProperty('display', 'flex', 'important');
+      loadingDiv.style.setProperty('flex-direction', 'column', 'important');
+      loadingDiv.style.setProperty('align-items', 'center', 'important');
+      loadingDiv.style.setProperty('justify-content', 'center', 'important');
+      loadingDiv.style.setProperty('visibility', 'visible', 'important');
+      loadingDiv.style.setProperty('opacity', '1', 'important');
+      loadingDiv.style.setProperty('background', 'transparent', 'important');
+      loadingDiv.style.setProperty('min-height', '200px', 'important');
+      
+      // Ocultar skeleton si existe
+      const skeletonLoader = loadingDiv.querySelector('.skeleton-loader');
+      if (skeletonLoader) {
+        skeletonLoader.style.setProperty('display', 'none', 'important');
+      }
+      
+      // Mostrar spinner y agregar mensaje
+      const spinnerLoader = loadingDiv.querySelector('.spinner-loader');
+      if (spinnerLoader) {
+        spinnerLoader.style.setProperty('display', 'flex', 'important');
+        spinnerLoader.style.setProperty('visibility', 'visible', 'important');
+        spinnerLoader.style.setProperty('opacity', '1', 'important');
+        spinnerLoader.style.setProperty('flex-direction', 'column', 'important');
+        spinnerLoader.style.setProperty('align-items', 'center', 'important');
+        spinnerLoader.style.setProperty('gap', '16px', 'important');
+        
+        // Asegurar que el spinner interno sea grande
+        const spinner = spinnerLoader.querySelector('.spinner');
+        if (spinner) {
+          spinner.style.setProperty('width', '56px', 'important');
+          spinner.style.setProperty('height', '56px', 'important');
+          spinner.style.setProperty('min-width', '56px', 'important');
+          spinner.style.setProperty('min-height', '56px', 'important');
+          spinner.style.setProperty('border-width', '4px', 'important');
+        }
+        
+        // Agregar mensaje de procesamiento si no existe
+        let processingMessage = spinnerLoader.querySelector('.processing-message');
+        if (!processingMessage) {
+          processingMessage = document.createElement('div');
+          processingMessage.className = 'processing-message';
+          processingMessage.textContent = 'Estamos procesando tu solicitud...';
+          spinnerLoader.appendChild(processingMessage);
+        } else {
+          processingMessage.style.setProperty('display', 'block', 'important');
+        }
+      }
+    }
+    
+    try {
+      const priceParams = this.buildPriceParams();
+      
+      // Calculate price
+      const priceResponse = await fetch(`${this.API_URL}/simulator/price`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.API_KEY
+        },
+        body: JSON.stringify({ data: priceParams })
+      });
+      
+      if (!priceResponse.ok) {
+        const errorText = await priceResponse.text();
+        console.error('Price error:', errorText);
+        throw new Error(`Error calculando precio: ${priceResponse.status}`);
+      }
+      
+      const priceResult = await priceResponse.json();
+      
+      // Get loan options
+      const loanBody = {
+        data: {
+          category_id: priceParams.category_id,
+          pledge_id: priceParams.pledge_id,
+          price: priceResult.price,
+          ...(priceParams.category_id === 2 || priceParams.category_id === 6 ? { params: priceParams.params } : {})
+        }
+      };
+      
+      if (priceParams.category_id === 2 || priceParams.category_id === 6) {
+        loanBody.location = {
+          user_id: "", state: "", delegation: "", colony: "", cp: "",
+          category: priceParams.category_id === 2 ? "Autos y Motos" : "Motos",
+          category_id: String(priceParams.category_id)
+        };
+      }
+      
+      const loanResponse = await fetch(`${this.API_URL}/simulator/type-loan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.API_KEY
+        },
+        body: JSON.stringify(loanBody)
+      });
+      
+      if (!loanResponse.ok) {
+        const errorText = await loanResponse.text();
+        console.error('Loan error:', errorText);
+        throw new Error(`Error obteniendo préstamos: ${loanResponse.status}`);
+      }
+      
+      const loanResult = await loanResponse.json();
+      
+      // Ocultar loader y mensaje antes de mostrar resultados
+      if (loadingDiv) {
+        loadingDiv.style.setProperty('display', 'none', 'important');
+        
+        // Ocultar mensaje de procesamiento si existe
+        const spinnerLoader = loadingDiv.querySelector('.spinner-loader');
+        if (spinnerLoader) {
+          const processingMessage = spinnerLoader.querySelector('.processing-message');
+          if (processingMessage) {
+            processingMessage.style.setProperty('display', 'none', 'important');
+          }
+        }
+      }
+      
+      this.currentProduct = {
+        name: this.catalogPath.map(p => p.name).join(' > '),
+        path: this.catalogPath,
+        price: priceResult.price,
+        priceParams: priceParams
+      };
+      this.currentLoanData = loanResult;
+      
+      this.displayResults();
+      
+    } catch (error) {
+      console.error('Error:', error);
+      
+      // Ocultar loader y mensaje en caso de error
+      if (loadingDiv) {
+        loadingDiv.style.setProperty('display', 'none', 'important');
+        
+        // Ocultar mensaje de procesamiento si existe
+        const spinnerLoader = loadingDiv.querySelector('.spinner-loader');
+        if (spinnerLoader) {
+          const processingMessage = spinnerLoader.querySelector('.processing-message');
+          if (processingMessage) {
+            processingMessage.style.setProperty('display', 'none', 'important');
+          }
+        }
+      }
+      
+      // Mostrar error en el contenedor de dropdowns
+      if (dropdownsContainer) {
+        dropdownsContainer.innerHTML = `<p style="text-align: center; color: #e74c3c; padding: 2rem;">Error procesando la solicitud<br><small>${error.message}</small></p>`;
+        dropdownsContainer.style.display = 'flex';
+      } else {
+      alert('Error procesando la solicitud. Por favor intenta de nuevo.');
+      }
+    }
+  }
+
+  buildPriceParams() {
+    const firstItem = this.catalogPath[0];
+    const catalogId = firstItem.catalogId;
+    let category_id = 1, pledge_id = 4;
+    const params = {};
+    
+    if (catalogId === 'metal_gold_catalog' || catalogId === 'metal_silver_catalog') {
+      category_id = 1;
+      pledge_id = 4;
+      params.karat = this.catalogPath[this.catalogPath.length - 1].karat_id || 14;
+      params.weight = 1.0;
+    } else if (catalogId.includes('diamond')) {
+      category_id = 1;
+      pledge_id = 11;
+      const color = this.catalogPath.find(p => p.catalogId === 'diamond_color_catalog');
+      const clarity = this.catalogPath.find(p => p.catalogId === 'diamond_clarity_catalog');
+      const size = this.catalogPath.find(p => p.catalogId === 'diamond_size_catalog');
+      params.amount = 1;
+      params.clarity_id = clarity?.clarity_id || 1;
+      params.colour_id = color?.colour_id || 1;
+      params.karats = size?.karat || 0.1;
+      params.karats_id = size?.karat_id || 1;
+      params.old_cut = "0";
+    } else if (catalogId === 'subcategory_miscellaneous' || this.currentCategory === 'electronics') {
+      category_id = 5;
+      const pledgeFromPath = this.catalogPath[0]?.id_pledge_Lakin || 
+                            this.catalogPath[0]?.id_pledge_lakin || 
+                            this.catalogPath[0]?.child_ids?.find(c => c.name === 'id_pledge_lakin')?.value;
+      pledge_id = parseInt(pledgeFromPath) || 60;
+      const brand = this.catalogPath.find(p => p.brand_id);
+      const model = this.catalogPath.find(p => p.model_id);
+      const f1 = this.catalogPath.find(p => p.charat1_id);
+      const f2 = this.catalogPath.find(p => p.charat2_id);
+      const f3 = this.catalogPath.find(p => p.charat3_id);
+      params.brand_id = brand?.brand_id || "";
+      params.model_id = model?.model_id || "";
+      params.feature1_id = f1?.charat1_id || "";
+      params.feature2_id = f2?.charat2_id || "";
+      params.feature3_id = f3?.charat3_id || "";
+    } else if (catalogId === 'subcategory_vehicles' || this.currentCategory === 'vehicles') {
+      category_id = 2;
+      const vehicleType = this.catalogPath[0]?.child_ids?.find(c => c.name === 'vehicle_type')?.id;
+      pledge_id = vehicleType === "2" ? 2 : 1;
+      const year = this.catalogPath.find(p => p.catalogId === 'year_vehicles');
+      const brand = this.catalogPath.find(p => p.catalogId === 'brand_vehicles');
+      const model = this.catalogPath.find(p => p.catalogId === 'model_vehicles');
+      const version = this.catalogPath.find(p => p.catalogId === 'version_vehicles');
+      params.vehicle = this.catalogPath[0]?.child_ids?.find(c => c.name === 'vehicle')?.id || "0";
+      params.brand_id = brand?.id || "";
+      params.model_id = model?.id || "";
+      params.version_id = version?.id || "";
+      params.year = year?.id || year?.name || "";
+    }
+    
+    return { category_id, pledge_id, params };
+  }
+
+  displayResults() {
+    document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
+    document.getElementById(`main-panels-${this.blockId}`).style.display = 'block';
+    
+    // Actualizar progress stepper para mostrar todos los pasos completados
+    const progressStepper = document.getElementById(`progress-stepper-results-${this.blockId}`);
+    if (progressStepper) {
+      const steps = progressStepper.querySelectorAll('.progress-step');
+      steps.forEach(step => step.classList.add('active'));
+    }
+    
+    this.displayProductDetails();
+    
+    // Asegurarnos de que selectedPlan tiene un valor por defecto
+    if (!this.selectedPlan) {
+      this.selectedPlan = 'tradicional';
+    }
+    
+    // Inicializar toggle background
+    const toggleBg = document.getElementById(`toggle-bg-${this.blockId}`);
+    if (toggleBg && this.selectedPlan === 'tradicional') {
+      toggleBg.style.left = '0.375rem';
+      toggleBg.classList.remove('right');
+    }
+    
+    this.selectPlan(this.selectedPlan);
+    
+    // Configurar los botones "Volver" para reiniciar
+    const backBtn = document.getElementById(`btn-simulate-${this.blockId}`);
+    if (backBtn) {
+      backBtn.onclick = (e) => {
+        e.preventDefault();
+        this.resetCatalog();
+      };
+    }
+    
+    const backBtnLoan = document.getElementById(`btn-simulate-loan-${this.blockId}`);
+    if (backBtnLoan) {
+      backBtnLoan.onclick = (e) => {
+        e.preventDefault();
+        this.resetCatalog();
+      };
+    }
+  }
+
+  displayProductDetails() {
+    // Actualizar panel izquierdo de detalles
+    const detailsDiv = document.getElementById(`product-details-${this.blockId}`);
+    if (detailsDiv) {
+      const catalogLabels = {
+        'subcategory_miscellaneous': 'Tipo de artículo',
+        'brand_catalog': 'Marca',
+        'model_catalog': 'Modelo',
+        'feature_1_catalog': 'Característica',
+        'feature_2_catalog': 'Característica',
+        'feature_3_catalog': 'Característica',
+        'metal_gold_catalog': 'Tipo de Metal',
+        'metal_silver_catalog': 'Tipo de Metal',
+        'diamond_color_catalog': 'Color',
+        'diamond_clarity_catalog': 'Claridad',
+        'diamond_size_catalog': 'Tamaño',
+        'subcategory_vehicles': 'Tipo de Vehículo',
+        'year_vehicles': 'Año',
+        'brand_vehicles': 'Marca',
+        'model_vehicles': 'Modelo',
+        'version_vehicles': 'Versión'
+      };
+      
+      let html = '<h3 class="details-title">Detalle de tu artículo</h3>';
+      html += '<div class="details-items">';
+      
+      this.catalogPath.forEach((item, index) => {
+        let label = catalogLabels[item.catalogId];
+        
+        if (!label) {
+          if (item.brand_id) label = 'Marca';
+          else if (item.charat1_id || item.charat2_id || item.charat3_id) label = 'Característica';
+          else if (item.model_id) label = 'Modelo';
+        }
+        
+        if (label && item.name) {
+          html += `
+            <div class="detail-item" data-step-index="${index}">
+              <span class="detail-label">${label}:</span>
+              <span class="detail-value">${item.name}</span>
+            </div>
+          `;
+        }
+      });
+      
+      html += '</div>';
+    detailsDiv.innerHTML = html;
+      
+      // Hacer los items clickeables para volver a ese paso
+      const detailItems = detailsDiv.querySelectorAll('.detail-item');
+      detailItems.forEach((item, index) => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => {
+          this.goToStep(index);
+        });
+      });
+    }
+    
+    // Actualizar card del artículo en la columna izquierda verde
+    const articleDetailsDiv = document.getElementById(`article-details-${this.blockId}`);
+    if (articleDetailsDiv) {
+      let modelName = '';
+      let brandName = '';
+      const characteristics = [];
+
+      this.catalogPath.forEach((item) => {
+        if (item.catalogId === 'model_catalog' || item.catalogId === 'model_vehicles') {
+          modelName = item.name;
+        } else if (item.catalogId === 'brand_catalog' || item.catalogId === 'brand_vehicles') {
+          brandName = item.name;
+        } else if (item.catalogId && item.catalogId.includes('feature_')) {
+          characteristics.push(item.name);
+        } else if (item.charat1_id || item.charat2_id || item.charat3_id) {
+          // También capturar características por ID si no tienen catalogId con 'feature_'
+          if (item.name) characteristics.push(item.name);
+        }
+      });
+
+      let html = `<h3 class="article-title">${modelName || 'Artículo Desconocido'}</h3>`;
+      if (brandName || characteristics.length > 0) {
+        html += `<div class="article-meta">`;
+        if (brandName) {
+          html += `<span>${brandName}</span>`;
+        }
+        if (brandName && characteristics.length > 0) {
+          html += `<span>•</span>`;
+        }
+        if (characteristics.length > 0) {
+          html += `<span>${characteristics.join(' • ')}</span>`;
+        }
+        html += `</div>`;
+      }
+
+      articleDetailsDiv.innerHTML = html;
+    } else {
+      console.warn(`No se encontró el elemento article-details-${this.blockId}`);
+    }
+  }
+
+  selectPlan(plan) {
+    this.selectedPlan = plan;
+    
+    const btnTradicional = document.getElementById(`btn-tradicional-${this.blockId}`);
+    const btnFijo = document.getElementById(`btn-fijo-${this.blockId}`);
+    const toggleBg = document.getElementById(`toggle-bg-${this.blockId}`);
+    
+    // Actualizar clases de botones
+    if (btnTradicional) {
+      btnTradicional.classList.toggle('active', plan === 'tradicional');
+    }
+    if (btnFijo) {
+      btnFijo.classList.toggle('active', plan === 'fijo');
+    }
+    
+    // Mover el fondo del toggle animado
+    if (toggleBg) {
+      if (plan === 'tradicional') {
+        toggleBg.style.left = '0.375rem';
+        toggleBg.classList.remove('right');
+      } else {
+        toggleBg.style.left = 'calc(50% + 0.375rem)';
+        toggleBg.classList.add('right');
+      }
+    }
+    
+    // Actualizar descripción del plan
+    const planDescriptionText = document.getElementById(`plan-description-text-${this.blockId}`);
+    const descriptions = {
+      'tradicional': 'Tú decides cuándo liquidar el total, pagando solo intereses en cada periodo.',
+      'fijo': 'Pagos fijos que incluyen capital e intereses. Terminas de pagar en el plazo elegido.'
+    };
+    if (planDescriptionText) {
+      planDescriptionText.textContent = descriptions[plan];
+    }
+    
+    // Mostrar/ocultar slider según el plan
+    const sliderContainer = document.getElementById(`slider-container-${this.blockId}`);
+    if (sliderContainer) {
+      sliderContainer.style.display = plan === 'fijo' ? 'block' : 'none';
+    }
+    
+    this.loadPlanOptions(plan);
+  }
+
+  loadPlanOptions(plan) {
+    if (!this.currentLoanData || !this.currentLoanData.line_products) {
+      console.warn('No loan data available');
+      return;
+    }
+    
+    const productData = this.currentLoanData.line_products.products.find(p => 
+      (plan === 'tradicional' && p.product === 'Tradicional') ||
+      (plan === 'fijo' && p.product === 'Pagos Fijos')
+    );
+    
+    if (!productData || !productData.frecuencies) {
+      console.warn('No product data found for plan:', plan);
+      return;
+    }
+    
+    console.log('Loading plan options for:', plan, 'Frequencies:', productData.frecuencies.length);
+    
+    // Generar botones de frecuencia
+    const container = document.getElementById(`frequency-options-${this.blockId}`);
+    if (container) {
+      container.innerHTML = '';
+      
+    productData.frecuencies.forEach((freq, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'frequency-btn';
+        btn.textContent = freq.frecuency;
+        btn.dataset.index = idx;
+        btn.onclick = () => {
+          // Actualizar activo
+          container.querySelectorAll('.frequency-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          this.selectedFrequency = productData.frecuencies[idx];
+          console.log('Selected frequency:', this.selectedFrequency);
+      this.updateLoanAmount();
+      this.setupTermsSelect(this.selectedFrequency);
+    };
+        container.appendChild(btn);
+      });
+      
+      // Seleccionar primero por defecto
+      if (productData.frecuencies.length > 0) {
+        // Simular click para activar y cargar términos
+        container.firstChild.click();
+      }
+    } else {
+      console.error('Frequency container not found');
+    }
+  }
+
+  updateLoanAmount() {
+    if (!this.selectedFrequency) return;
+    
+    // Extraer solo el número del formato "$X,XXX.XX"
+    const loanAmount = this.selectedFrequency.formatted_loan.replace(/[^0-9.]/g, '');
+    const loanAmountEl = document.getElementById(`loan-amount-${this.blockId}`);
+    
+    if (loanAmountEl) {
+      // Formatear con comas y mostrar sin símbolo $ (el símbolo está en el HTML)
+      const formatted = parseFloat(loanAmount).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      loanAmountEl.textContent = formatted;
+    }
+  }
+
+  setupTermsSelect(frequency) {
+    if (!frequency || !frequency.terms || frequency.terms.length === 0) return;
+    
+    const slider = document.getElementById(`terms-slider-${this.blockId}`);
+    const valueBadge = document.getElementById(`slider-value-badge-${this.blockId}`);
+    const sliderUnit = document.getElementById(`slider-unit-${this.blockId}`);
+    
+    if (slider) {
+      // Configurar slider
+      const max = frequency.terms.length - 1;
+      slider.min = 0;
+      slider.max = max;
+      slider.value = 0;
+      slider.step = 1;
+      
+      const updateSlider = (idx) => {
+        this.selectedTerm = frequency.terms[idx];
+    this.updatePaymentSummary();
+    
+        // Actualizar badge del slider (número grande + unidad separada)
+        if (valueBadge) {
+          valueBadge.textContent = this.selectedTerm.term;
+        }
+        if (sliderUnit) {
+          const freqLabel = frequency.frecuency.toLowerCase();
+          const isMonthly = freqLabel.includes('mensual');
+          sliderUnit.textContent = isMonthly ? 'Meses' : 'Pagos';
+        }
+        
+        // Actualizar progreso del slider
+        const percent = max > 0 ? (idx / max) * 100 : 0;
+        slider.style.background = `linear-gradient(to right, #059669 0%, #059669 ${percent}%, #f1f5f9 ${percent}%, #f1f5f9 100%)`;
+      };
+      
+      slider.oninput = (e) => {
+        updateSlider(parseInt(e.target.value));
+      };
+      
+      slider.onchange = (e) => {
+        updateSlider(parseInt(e.target.value));
+      };
+      
+      // Inicializar
+      updateSlider(0);
+    }
+  }
+
+  updatePaymentSummary() {
+    if (!this.selectedTerm) return;
+    
+    // Extraer solo el número del formato "$X,XXX.XX"
+    const paymentValue = this.selectedTerm.formatted_payment.replace(/[^0-9.]/g, '');
+    const lastPaymentValue = this.selectedTerm.formatted_last_payment.replace(/[^0-9.]/g, '');
+    
+    // Actualizar valores (solo números, sin símbolo $)
+    const paymentValueEl = document.getElementById(`payment-value-${this.blockId}`);
+    const lastPaymentValueEl = document.getElementById(`last-payment-value-${this.blockId}`);
+    
+    if (paymentValueEl) {
+      paymentValueEl.textContent = parseFloat(paymentValue).toFixed(2);
+    }
+    if (lastPaymentValueEl) {
+      lastPaymentValueEl.textContent = parseFloat(lastPaymentValue).toFixed(2);
+    }
+    
+    // Actualizar etiquetas según el plan y frecuencia
+    const periodicLabel = document.getElementById(`periodic-label-${this.blockId}`);
+    const finalLabel = document.getElementById(`final-label-${this.blockId}`);
+    const finalCard = document.getElementById(`final-card-${this.blockId}`);
+    const finalBar = finalCard ? finalCard.querySelector('.loan-card-bar') : null;
+    const finalSymbol = document.getElementById(`final-symbol-${this.blockId}`);
+    const finalValue = document.getElementById(`last-payment-value-${this.blockId}`);
+    
+    if (periodicLabel && this.selectedFrequency) {
+      const freqLower = this.selectedFrequency.frecuency.toLowerCase();
+      periodicLabel.textContent = `Pago ${freqLower}`;
+    }
+    
+    // Estilo diferente para plan tradicional (liquidación final en amber)
+    if (this.selectedPlan === 'tradicional') {
+      if (finalCard) {
+        finalCard.classList.add('amber');
+      }
+      if (finalBar) {
+        finalBar.classList.add('loan-card-bar-amber');
+      }
+      if (finalLabel) {
+        finalLabel.classList.add('loan-result-label-amber');
+      }
+      if (finalSymbol) {
+        finalSymbol.classList.add('loan-currency-amber');
+      }
+      if (finalValue) {
+        finalValue.classList.add('loan-result-value-amber');
+      }
+    } else {
+      if (finalCard) {
+        finalCard.classList.remove('amber');
+      }
+      if (finalBar) {
+        finalBar.classList.remove('loan-card-bar-amber');
+      }
+      if (finalLabel) {
+        finalLabel.classList.remove('loan-result-label-amber');
+      }
+      if (finalSymbol) {
+        finalSymbol.classList.remove('loan-currency-amber');
+      }
+      if (finalValue) {
+        finalValue.classList.remove('loan-result-value-amber');
+      }
+    }
+  }
+
+  showPaymentDetails() {
+    if (!this.selectedFrequency || !this.selectedFrequency.terms) return;
+    
+    const modal = document.getElementById(`modal-${this.blockId}`);
+    const modalBody = document.getElementById(`modal-body-${this.blockId}`);
+    
+    let html = '<h4>Todos los términos disponibles</h4>';
+    html += '<table><thead><tr><th>Término</th><th style="text-align: right;">Pago</th><th style="text-align: right;">Último Pago</th></tr></thead><tbody>';
+    
+    this.selectedFrequency.terms.forEach(term => {
+      html += `<tr><td>${term.formatted_term}</td><td style="text-align: right;">${term.formatted_payment}</td><td style="text-align: right;">${term.formatted_last_payment}</td></tr>`;
+    });
+    
+    html += '</tbody></table>';
+    modalBody.innerHTML = html;
+    modal.style.display = 'flex';
+  }
+
+  closeModal() {
+    document.getElementById(`modal-${this.blockId}`).style.display = 'none';
+  }
+
+  showContactForm() {
+    document.getElementById(`selected-products-data-${this.blockId}`).value = JSON.stringify([this.currentProduct]);
+    document.getElementById(`selected-loan-data-${this.blockId}`).value = JSON.stringify({
+      plan: this.selectedPlan,
+      frequency: this.selectedFrequency.frecuency,
+      term: this.selectedTerm,
+      loan_amount: this.selectedFrequency.loan
+    });
+    
+    const formSection = document.getElementById(`form-section-${this.blockId}`);
+    formSection.style.display = 'block';
+    formSection.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  resetSimulation() {
+    document.getElementById(`main-panels-${this.blockId}`).style.display = 'none';
+    document.getElementById(`form-section-${this.blockId}`).style.display = 'none';
+    this.catalogPath = [];
+    this.currentProduct = null;
+    this.currentLoanData = null;
+    this.updateDetailsPanel();
+    document.querySelectorAll(`#categories-${this.blockId} .category-item`).forEach(btn => btn.classList.remove('active'));
+  }
+
+  resetAll() {
+    this.resetSimulation();
+    this.currentCategory = null;
+    document.getElementById(`success-panel-${this.blockId}`).style.display = 'none';
+    document.getElementById(`cotizador-form-${this.blockId}`).reset();
+    
+    // Mostrar título y descripción nuevamente
+    const header = document.querySelector(`#cotizador-${this.blockId} .cotizador-header`);
+    if (header) {
+      header.style.display = 'flex';
+    }
+    
+    // Mostrar categorías y resetear navegación
+    document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
+    document.getElementById(`categories-${this.blockId}`).style.display = 'grid';
+    this.updateDetailsPanel();
+    document.getElementById(`categories-${this.blockId}`).scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // MÉTODO DUPLICADO ELIMINADO - Se usa la versión de la línea 674
+  // Esta versión antigua buscaba details-panel-${this.blockId} pero el HTML usa details-content-${this.blockId}
+
+  goToStep(stepIndex) {
+    // stepIndex 0 = categoría seleccionada (no está en catalogPath)
+    // stepIndex 1 = primer item en catalogPath (subcategory_miscellaneous) - mostrar dropdown del paso 1
+    // stepIndex 2 = segundo item en catalogPath (brand_catalog) - mostrar dropdown del paso 2
+    // etc.
+    
+    // Si el paso es 0, regresar a la selección de categoría
+    if (stepIndex === 0) {
+      this.resetCatalog();
+      return;
+    }
+    
+    // Calcular cuántos items del path mantener (mantener hasta el paso anterior al seleccionado)
+    // stepIndex 1 = mantener 0 items (mostrar dropdown del paso 1)
+    // stepIndex 2 = mantener 1 item (mostrar dropdown del paso 2)
+    // stepIndex 3 = mantener 2 items (mostrar dropdown del paso 3)
+    const itemsToKeep = stepIndex - 1;
+    
+    // Si el paso seleccionado es mayor que los pasos completados, no hacer nada
+    const completedSteps = (this.currentCategory ? 1 : 0) + this.catalogPath.length;
+    if (stepIndex > completedSteps) {
+      return;
+    }
+    
+    // Si el paso seleccionado es el último completado, no hacer nada (ya está en ese paso)
+    if (stepIndex === completedSteps) {
+      return;
+    }
+    
+    // Truncar catalogPath hasta el índice correspondiente (mantener items hasta el paso anterior)
+    this.catalogPath = this.catalogPath.slice(0, itemsToKeep);
+    
+    // Mostrar loader visualmente para indicar que se está procesando
+    const loadingDiv = document.getElementById(`loading-${this.blockId}`);
+    const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+    
+    if (loadingDiv) {
+      // Preservar altura si es posible antes de ocultar los dropdowns
+      if (dropdownsContainer && dropdownsContainer.offsetHeight > 0) {
+        loadingDiv.style.minHeight = dropdownsContainer.offsetHeight + 'px';
+      } else {
+        loadingDiv.style.minHeight = '150px';
+      }
+      
+      // FORZAR mostrar loader con !important - centrado
+      loadingDiv.style.setProperty('display', 'flex', 'important');
+      loadingDiv.style.setProperty('visibility', 'visible', 'important');
+      loadingDiv.style.setProperty('opacity', '1', 'important');
+      loadingDiv.style.setProperty('flex-direction', 'column', 'important');
+      loadingDiv.style.setProperty('align-items', 'center', 'important');
+      loadingDiv.style.setProperty('justify-content', 'center', 'important');
+      loadingDiv.style.setProperty('z-index', '100', 'important');
+      loadingDiv.style.setProperty('background', 'transparent', 'important');
+      
+      // Ocultar skeleton si existe
+      const skeleton = loadingDiv.querySelector('.skeleton-loader');
+      if (skeleton) {
+        skeleton.style.setProperty('display', 'none', 'important');
+      }
+      
+      // Mostrar solo spinner y asegurar que sea grande
+      const spinner = loadingDiv.querySelector('.spinner-loader');
+      if (spinner) {
+        spinner.style.setProperty('display', 'flex', 'important');
+        spinner.style.setProperty('visibility', 'visible', 'important');
+        spinner.style.setProperty('opacity', '1', 'important');
+        
+        // Asegurar que el spinner interno sea grande
+        const spinnerElement = spinner.querySelector('.spinner');
+        if (spinnerElement) {
+          spinnerElement.style.setProperty('width', '56px', 'important');
+          spinnerElement.style.setProperty('height', '56px', 'important');
+          spinnerElement.style.setProperty('min-width', '56px', 'important');
+          spinnerElement.style.setProperty('min-height', '56px', 'important');
+          spinnerElement.style.setProperty('border-width', '4px', 'important');
+        }
+      }
+      
+      // Forzar reflow
+      loadingDiv.offsetHeight;
+    }
+    
+    // Limpiar dropdowns existentes antes de recargar
+    if (dropdownsContainer) {
+      dropdownsContainer.innerHTML = '';
+      dropdownsContainer.style.display = 'none';
+      dropdownsContainer.style.visibility = 'hidden';
+      dropdownsContainer.style.opacity = '0';
+    }
+    
+    // Determinar qué catálogo cargar para mostrar el dropdown del paso seleccionado
+    if (this.catalogPath.length === 0) {
+      // Si no hay items en el path, cargar el primer catálogo de la categoría (paso 1)
+      const catalogIds = {
+        'metals': 'metal_gold_catalog',
+        'watches': 'metal_gold_catalog',
+        'diamonds': 'diamond_color_catalog',
+        'electronics': 'subcategory_miscellaneous',
+        'celulares': 'subcategory_miscellaneous',
+        'laptops': 'subcategory_miscellaneous',
+        'tablets': 'subcategory_miscellaneous',
+        'smartwatch': 'subcategory_miscellaneous',
+        'consoles': 'subcategory_miscellaneous',
+        'others': 'subcategory_miscellaneous',
+        'vehicles': 'subcategory_vehicles',
+        'auto_financing': 'subcategory_vehicles'
+      };
+      
+      const catalogId = catalogIds[this.currentCategory];
+      if (catalogId) {
+        this.loadCatalog(catalogId, {});
+      }
+    } else {
+      // Obtener el último item del path truncado y cargar el siguiente catálogo (que corresponde al paso seleccionado)
+      const lastItem = this.catalogPath[this.catalogPath.length - 1];
+      const nextCatalog = this.getNextCatalog(lastItem.catalogId, lastItem);
+      
+      if (nextCatalog) {
+        this.loadCatalog(nextCatalog.catalogId, nextCatalog.params);
+      } else {
+        // Si no hay siguiente catálogo, actualizar solo el panel y ocultar loader
+        this.updateDetailsPanel();
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        
+        // Si llegamos al final del flujo, calcular resultados
+        this.calculateAndShowResults();
+      }
+    }
+    
+    // Actualizar el panel de detalles después de truncar el path
+    this.updateDetailsPanel();
+  }
+
+  updateBreadcrumb() {
+    // Breadcrumb removido - ya no se muestra
+    // El breadcrumb ha sido ocultado en el HTML y este método ya no se usa
+    return;
+  }
+
+  async handleSubmit(e) {
+    e.preventDefault();
+    
+    const button = e.target.querySelector('button[type="submit"]');
+    const messageDiv = document.getElementById(`cotizador-message-${this.blockId}`);
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Enviando...';
+
+    const formData = new FormData(e.target);
+    formData.append('shop', this.config.shop);
+    formData.append('source', 'storefront');
+
+    try {
+      const response = await fetch('/apps/cotizador', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // Ocultar secciones anteriores
+        document.getElementById(`form-section-${this.blockId}`).style.display = 'none';
+        document.getElementById(`main-panels-${this.blockId}`).style.display = 'none';
+        document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
+        document.getElementById(`categories-${this.blockId}`).style.display = 'none';
+        
+        // Mostrar panel de éxito
+        document.getElementById(`success-quote-id-${this.blockId}`).textContent = result.quoteNumber || 'PENDIENTE';
+        const successPanel = document.getElementById(`success-panel-${this.blockId}`);
+        successPanel.style.display = 'block';
+        successPanel.scrollIntoView({ behavior: 'smooth' });
+        
+        // Limpiar formulario
+        e.target.reset();
+      } else {
+        throw new Error(result.error || 'Error al enviar');
+      }
+    } catch (error) {
+      console.error("Error enviando cotización:", error);
+      messageDiv.className = 'cotizador-message-v2 error';
+      messageDiv.textContent = 'Error: No se pudo enviar. Por favor intenta de nuevo.';
+      messageDiv.style.display = 'block';
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+// Exportar la clase para que el Liquid pueda inicializarla
+// No auto-inicializar aquí

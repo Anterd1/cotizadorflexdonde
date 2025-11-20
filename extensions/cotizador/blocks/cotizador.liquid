@@ -1,0 +1,409 @@
+{% comment %}
+  Cotizador Dinámico con API de Catálogos
+  Restored Version
+{% endcomment %}
+
+{{ 'cotizador.css' | asset_url | stylesheet_tag }}
+
+<div class="cotizador-block-v2" id="cotizador-{{ block.id }}" style="
+  --cotizador-padding-top: {{ block.settings.padding_top }}px;
+  --cotizador-padding-sides: {{ block.settings.padding_sides }}px;
+  --cotizador-padding-bottom: {{ block.settings.padding_bottom }}px;
+">
+  <div class="cotizador-container-v2">
+    
+    {% if block.settings.title != blank %}
+      <div class="cotizador-header">
+        <h2 class="cotizador-title-main">{{ block.settings.title }}</h2>
+        <p class="cotizador-subtitle">Cotiza el valor aproximado de tus artículos en minutos.</p>
+      </div>
+    {% endif %}
+
+    <!-- SECCIÓN 1: CATEGORÍAS -->
+    <div class="cotizador-categories-grid" id="categories-{{ block.id }}">
+      <!-- Fila 1 -->
+      <div>
+        <button type="button" class="category-item" data-category="metals">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-alhajas.png' | asset_url }}" alt="Alhajas" width="96" height="91" />
+          </div>
+          <span class="cat-label">Alhajas</span>
+        </button>
+
+        <button type="button" class="category-item" data-category="watches">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-relojes.png' | asset_url }}" alt="Relojes" width="96" height="91" />
+          </div>
+          <span class="cat-label">Relojes</span>
+        </button>
+
+        <button type="button" class="category-item" data-category="electronics">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-otros.png' | asset_url }}" alt="Electrónicos" width="96" height="91" />
+          </div>
+          <span class="cat-label">Electrónicos</span>
+        </button>
+        
+        <button type="button" class="category-item" data-category="celulares">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-celulares.png' | asset_url }}" alt="Celulares" width="96" height="91" />
+          </div>
+          <span class="cat-label">Celulares</span>
+        </button>
+
+        <button type="button" class="category-item" data-category="laptops">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-laptops.png' | asset_url }}" alt="Laptops" width="96" height="91" />
+          </div>
+          <span class="cat-label">Laptops</span>
+        </button>
+      </div>
+
+      <!-- Fila 2 -->
+      <div>
+        <button type="button" class="category-item" data-category="tablets">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-tablets.png' | asset_url }}" alt="Tablets" width="96" height="91" />
+          </div>
+          <span class="cat-label">Tablets</span>
+        </button>
+
+        <button type="button" class="category-item" data-category="smartwatch">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-smartwatch.png' | asset_url }}" alt="Smartwatch" width="96" height="91" />
+          </div>
+          <span class="cat-label">Smartwatch</span>
+        </button>
+
+        <button type="button" class="category-item" data-category="consoles">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-consolas.png' | asset_url }}" alt="Consolas" width="96" height="91" />
+          </div>
+          <span class="cat-label">Consolas</span>
+        </button>
+
+        <button type="button" class="category-item" data-category="vehicles">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-autos-motos.png' | asset_url }}" alt="Autos y Motos" width="96" height="91" />
+          </div>
+          <span class="cat-label">Autos y<br>Motos</span>
+        </button>
+
+        <button type="button" class="category-item" data-category="auto_financing">
+          <div class="cat-img-container">
+            <img src="{{ 'icon-financiamiento-auto.png' | asset_url }}" alt="Financiamiento" width="96" height="91" />
+          </div>
+          <span class="cat-label">Financiamiento<br>Auto</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 2: NAVEGACIÓN DE CATÁLOGO -->
+    <div id="catalog-nav-{{ block.id }}" class="cotizador-catalog-nav-v2" style="display: none;">
+      
+      <!-- Loader de transición entre pantallas -->
+      <div id="screen-transition-loader-{{ block.id }}" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 50; justify-content: center; align-items: center; flex-direction: column;">
+        <div class="spinner"></div>
+        <p style="margin-top: 10px; color: #005745; font-weight: 500;">Cargando opciones...</p>
+      </div>
+
+      <div class="catalog-layout-v2">
+        <!-- Panel Izquierdo: Detalles -->
+        <div class="catalog-details-panel" id="catalog-details-{{ block.id }}">
+           <a href="#" class="back-link" onclick="document.getElementById('btn-reset-catalog-{{ block.id }}').click(); return false;">
+            ← Volver a categorías
+          </a>
+          
+          <!-- Progress Stepper -->
+          <div class="progress-stepper" id="progress-stepper-{{ block.id }}">
+            <div class="progress-step"></div>
+            <div class="progress-step"></div>
+            <div class="progress-step"></div>
+            <div class="progress-step"></div>
+            <div class="progress-step"></div>
+            <div class="progress-step"></div>
+            <div class="progress-step"></div>
+          </div>
+          
+          <div class="details-panel-content" id="details-content-{{ block.id }}">
+            <!-- Se llena dinámicamente -->
+            <div class="details-empty-state">
+              Selecciona las opciones para ver el detalle de tu cotización
+            </div>
+          </div>
+
+          <!-- Tarjeta de Ayuda -->
+          <div class="help-card">
+            <div class="help-card-content">
+              <h4 class="help-title">¿No encuentras tu artículo?</h4>
+              <p class="help-text">Contáctanos para ayuda personalizada.</p>
+              <button class="help-button">Ayuda</button>
+            </div>
+          </div>
+          
+          <button id="btn-reset-catalog-{{ block.id }}" style="display:none;">Reset</button>
+        </div>
+
+        <!-- Panel Derecho: Navegación -->
+        <div class="catalog-navigation-panel">
+          
+          <!-- Breadcrumb -->
+          <div class="breadcrumb-v2" id="breadcrumb-{{ block.id }}" style="display:none;"></div>
+
+          <!-- Loader -->
+          <div id="loading-{{ block.id }}" class="loading-v2">
+            <div class="spinner-loader">
+              <div class="spinner"></div>
+            </div>
+            <p>Cargando opciones...</p>
+          </div>
+
+          <!-- Dropdowns Container -->
+          <div id="catalog-dropdowns-{{ block.id }}" class="catalog-dropdowns-container">
+            <!-- Los dropdowns se generan aquí -->
+          </div>
+          
+          <!-- Items Grid (Fallback) -->
+          <div id="catalog-items-{{ block.id }}" class="catalog-grid-v2" style="display: none;"></div>
+          
+          <!-- Texto de ayuda para dropdowns -->
+          <div id="dropdown-help-{{ block.id }}" class="dropdown-help-text" style="display: none;">
+            <p>Selecciona una opción de la lista para continuar.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 3: RESULTADOS (Calculadora) -->
+    <div class="cotizador-main-panels" id="main-panels-{{ block.id }}" style="display: none;">
+      <div class="catalog-layout-v2">
+        <!-- Panel izquierdo: Detalles del artículo -->
+        <div class="catalog-details-panel">
+          <a href="#" class="back-link" id="btn-simulate-{{ block.id }}">← Volver</a>
+          
+          <!-- Progress Stepper -->
+          <div class="progress-stepper" id="progress-stepper-results-{{ block.id }}">
+            <div class="progress-step active"></div>
+            <div class="progress-step active"></div>
+            <div class="progress-step active"></div>
+            <div class="progress-step active"></div>
+            <div class="progress-step active"></div>
+            <div class="progress-step active"></div>
+            <div class="progress-step active"></div>
+          </div>
+          
+          <div class="details-panel-content" id="product-details-{{ block.id }}">
+            <!-- Se llenará dinámicamente con los detalles del artículo -->
+          </div>
+        </div>
+
+        <!-- Panel de préstamo: Diseño final -->
+        <div class="loan-final-container">
+          
+          <!-- COLUMNA IZQUIERDA: Verde con oferta -->
+          <div class="loan-col-left">
+            <!-- Decoraciones de fondo -->
+            <div class="loan-blob-top"></div>
+            <div class="loan-blob-bottom"></div>
+            
+            <!-- Header con Volver -->
+            <a href="#" class="loan-back-btn" id="btn-simulate-loan-{{ block.id }}">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              <span>VOLVER</span>
+            </a>
+            
+            <div class="loan-col-left-content">
+              <!-- Oferta Principal -->
+              <div class="loan-offer-section">
+                <div class="loan-approved-badge">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                  <span>OFERTA APROBADA</span>
+                </div>
+                <p class="loan-receive-label">Recibe hasta:</p>
+                <h1 class="loan-amount-huge"><span>$</span><span id="loan-amount-{{ block.id }}">0.00</span></h1>
+              </div>
+              
+              <!-- Selector de Plan Toggle -->
+              <div class="loan-plan-toggle-section">
+                <label class="loan-toggle-label">ELIGE TU MODALIDAD</label>
+                <div class="loan-toggle-container">
+                  <div class="loan-toggle-bg" id="toggle-bg-{{ block.id }}"></div>
+                  <button type="button" class="loan-toggle-btn" data-plan="tradicional" id="btn-tradicional-{{ block.id }}">TRADICIONAL</button>
+                  <button type="button" class="loan-toggle-btn" data-plan="fijo" id="btn-fijo-{{ block.id }}">FIJO</button>
+                </div>
+                <p class="loan-plan-desc" id="plan-description-text-{{ block.id }}">Tú decides cuándo liquidar el total, pagando solo intereses en cada periodo.</p>
+              </div>
+              
+              <!-- Tarjeta de Artículo -->
+              <div class="loan-article-card">
+                <div class="article-card-header">
+                  <span class="article-badge">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                    TU GARANTÍA
+                  </span>
+                </div>
+                <div class="article-details" id="article-details-{{ block.id }}">
+                  <!-- Se llenará dinámicamente -->
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- COLUMNA DERECHA: Blanca con calculadora -->
+          <div class="loan-col-right">
+            <div class="loan-right-content">
+              
+              <!-- Header derecha -->
+              <div class="loan-right-header">
+                <div>
+                  <h2 class="loan-right-title">Personaliza tu pago</h2>
+                  <p class="loan-right-subtitle">Ajusta los plazos a tu medida</p>
+                </div>
+                <div class="loan-icon-circle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+              </div>
+              
+              <!-- Selector de Frecuencia -->
+              <div class="loan-freq-section">
+                <label class="loan-section-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  FRECUENCIA
+                </label>
+                <div class="loan-freq-buttons" id="frequency-options-{{ block.id }}"></div>
+              </div>
+              
+              <!-- Slider (solo plan fijo) -->
+              <div class="loan-slider-section" id="slider-container-{{ block.id }}" style="display: none;">
+                <div class="loan-slider-header">
+                  <label class="loan-section-label-small">PLAZO</label>
+                  <div class="loan-slider-display">
+                    <span class="loan-slider-num" id="slider-value-badge-{{ block.id }}">0</span>
+                    <span class="loan-slider-unit" id="slider-unit-{{ block.id }}">Pagos</span>
+                  </div>
+                </div>
+                <input type="range" class="loan-range-input" id="terms-slider-{{ block.id }}" min="0" max="0" step="1" value="0">
+              </div>
+              
+              <!-- Cards de Resultados -->
+              <div class="loan-results-grid">
+                <div class="loan-result-card" id="periodic-card-{{ block.id }}">
+                  <div class="loan-card-bar"></div>
+                  <p class="loan-result-label" id="periodic-label-{{ block.id }}">PAGO DIARIO</p>
+                  <div class="loan-result-amount-row">
+                    <span class="loan-currency">$</span>
+                    <span class="loan-result-value" id="payment-value-{{ block.id }}">0.00</span>
+                  </div>
+                </div>
+                
+                <div class="loan-result-card" id="final-card-{{ block.id }}">
+                  <div class="loan-card-bar"></div>
+                  <p class="loan-result-label" id="final-label-{{ block.id }}">LIQUIDACIÓN FINAL</p>
+                  <div class="loan-result-amount-row">
+                    <span class="loan-currency" id="final-currency-{{ block.id }}">$</span>
+                    <span class="loan-result-value" id="last-payment-value-{{ block.id }}">0.00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Botón CTA -->
+            <button type="button" class="loan-cta-button" id="btn-continue-{{ block.id }}">
+              <span>Confirmar Préstamo</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Genérico -->
+<div id="modal-{{ block.id }}" class="modal" style="display: none;">
+  <div class="modal-content">
+    <span id="modal-close-{{ block.id }}" class="close">&times;</span>
+    <div id="modal-body-{{ block.id }}"></div>
+  </div>
+</div>
+
+<script src="{{ 'cotizador.js' | asset_url }}" defer></script>
+<script>
+  (function() {
+    function initCotizador() {
+      console.log('🔧 Intentando inicializar CotizadorApp...');
+      if (typeof CotizadorApp !== 'undefined') {
+        try {
+          window.cotizadorApp_{{ block.id }} = new CotizadorApp('{{ block.id }}', {
+            shop: '{{ shop.permanent_domain }}'
+          });
+          console.log('✅ CotizadorApp inicializado correctamente');
+        } catch (error) {
+          console.error('❌ Error al inicializar CotizadorApp:', error);
+        }
+      } else {
+        console.error('❌ CotizadorApp no está definido.');
+        setTimeout(() => {
+          if (typeof CotizadorApp !== 'undefined') {
+            console.log('🔄 Reintentando inicialización...');
+            initCotizador();
+          }
+        }, 500);
+      }
+    }
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initCotizador);
+    } else {
+      initCotizador();
+    }
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Cotizador Dinámico",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Título",
+      "default": "Monétiza tus bienes"
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "label": "Padding superior",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "default": 60,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "padding_sides",
+      "label": "Padding lateral",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "default": 20,
+      "unit": "px"
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "label": "Padding inferior",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "default": 60,
+      "unit": "px"
+    }
+  ]
+}
+{% endschema %}
