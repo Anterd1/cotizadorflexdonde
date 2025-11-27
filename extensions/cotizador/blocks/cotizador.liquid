@@ -101,12 +101,8 @@
     <!-- SECCIÓN 2: NAVEGACIÓN DE CATÁLOGO -->
     <div id="catalog-nav-{{ block.id }}" class="cotizador-catalog-nav-v2" style="display: none;">
       
-      <!-- Loader de transición entre pantallas -->
-      <div id="screen-transition-loader-{{ block.id }}" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 50; justify-content: center; align-items: center; flex-direction: column;">
-        <div class="spinner"></div>
-        <p style="margin-top: 10px; color: #005745; font-weight: 500;">Cargando opciones...</p>
-      </div>
-
+      <!-- Loader de transición ELIMINADO para evitar duplicidad -->
+      
       <div class="catalog-layout-v2">
         <!-- Panel Izquierdo: Detalles -->
         <div class="catalog-details-panel" id="catalog-details-{{ block.id }}">
@@ -123,14 +119,14 @@
             <div class="progress-step"></div>
             <div class="progress-step"></div>
             <div class="progress-step"></div>
-          </div>
-          
+    </div>
+
           <div class="details-panel-content" id="details-content-{{ block.id }}">
             <!-- Se llena dinámicamente -->
             <div class="details-empty-state">
               Selecciona las opciones para ver el detalle de tu cotización
             </div>
-          </div>
+      </div>
 
           <!-- Tarjeta de Ayuda -->
           <div class="help-card">
@@ -156,13 +152,13 @@
               <div class="spinner"></div>
             </div>
             <p>Cargando opciones...</p>
-          </div>
+      </div>
 
           <!-- Dropdowns Container -->
           <div id="catalog-dropdowns-{{ block.id }}" class="catalog-dropdowns-container">
             <!-- Los dropdowns se generan aquí -->
-          </div>
-          
+        </div>
+
           <!-- Items Grid (Fallback) -->
           <div id="catalog-items-{{ block.id }}" class="catalog-grid-v2" style="display: none;"></div>
           
@@ -228,9 +224,9 @@
               <div class="loan-plan-toggle-section">
                 <label class="loan-toggle-label">ELIGE TU MODALIDAD</label>
                 <div class="loan-toggle-container">
-                  <div class="loan-toggle-bg" id="toggle-bg-{{ block.id }}"></div>
-                  <button type="button" class="loan-toggle-btn" data-plan="tradicional" id="btn-tradicional-{{ block.id }}">TRADICIONAL</button>
-                  <button type="button" class="loan-toggle-btn" data-plan="fijo" id="btn-fijo-{{ block.id }}">FIJO</button>
+                  <div class="loan-toggle-bg pos-left" id="toggle-bg-{{ block.id }}"></div>
+                  <button type="button" class="loan-toggle-btn active" data-plan="tradicional" id="btn-tradicional-{{ block.id }}">TRADICIONAL</button>
+                  <button type="button" class="loan-toggle-btn inactive" data-plan="fijo" id="btn-fijo-{{ block.id }}">FIJO</button>
                 </div>
                 <p class="loan-plan-desc" id="plan-description-text-{{ block.id }}">Tú decides cuándo liquidar el total, pagando solo intereses en cada periodo.</p>
               </div>
@@ -305,9 +301,9 @@
                     <span class="loan-result-value" id="last-payment-value-{{ block.id }}">0.00</span>
                   </div>
                 </div>
-              </div>
-            </div>
-            
+      </div>
+    </div>
+
             <!-- Botón CTA -->
             <button type="button" class="loan-cta-button" id="btn-continue-{{ block.id }}">
               <span>Confirmar Préstamo</span>
@@ -316,6 +312,163 @@
           </div>
           
         </div>
+      </div>
+    </div>
+
+    <!-- Paso de Selección de Sucursal y Cita -->
+    <div class="cotizador-appointment-section" id="appointment-section-{{ block.id }}" style="display: none;">
+      <div class="appointment-container">
+        <h2>Selecciona tu sucursal y horario</h2>
+        <p class="appointment-subtitle">Elige la sucursal más cercana y el horario que mejor te convenga</p>
+        
+        <!-- Selector de Sucursal -->
+        <div class="form-field">
+          <label for="branch-select-{{ block.id }}">Sucursal *</label>
+          <select 
+            id="branch-select-{{ block.id }}" 
+            name="branchId" 
+            required
+            class="cotizador-select"
+          >
+            <option value="">Cargando sucursales...</option>
+          </select>
+        </div>
+
+        <!-- Selector de Fecha -->
+        <div class="form-field">
+          <label for="appointment-date-{{ block.id }}">Fecha de cita *</label>
+          <input 
+            type="date" 
+            id="appointment-date-{{ block.id }}" 
+            name="appointmentDate" 
+            required
+            class="cotizador-input"
+            min=""
+          />
+        </div>
+
+        <!-- Selector de Hora -->
+        <div class="form-field">
+          <label for="appointment-time-{{ block.id }}">Hora de cita *</label>
+          <select 
+            id="appointment-time-{{ block.id }}" 
+            name="appointmentTime" 
+            required
+            class="cotizador-select"
+          >
+            <option value="">Selecciona una hora</option>
+            <option value="09:00">09:00 AM</option>
+            <option value="10:00">10:00 AM</option>
+            <option value="11:00">11:00 AM</option>
+            <option value="12:00">12:00 PM</option>
+            <option value="13:00">01:00 PM</option>
+            <option value="14:00">02:00 PM</option>
+            <option value="15:00">03:00 PM</option>
+            <option value="16:00">04:00 PM</option>
+            <option value="17:00">05:00 PM</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <button 
+            type="button" 
+            class="cotizador-button"
+            id="btn-continue-appointment-{{ block.id }}"
+          >
+            Continuar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulario de Contacto -->
+    <div class="cotizador-form-section" id="form-section-{{ block.id }}" style="display: none;">
+      <form class="cotizador-form" id="cotizador-form-{{ block.id }}">
+        <input type="hidden" name="selectedProducts" id="selected-products-data-{{ block.id }}" value="">
+        <input type="hidden" name="selectedLoan" id="selected-loan-data-{{ block.id }}" value="">
+        
+        <h3>Completa tus datos para confirmar tu préstamo</h3>
+        
+        <div class="form-row">
+          <div class="form-field">
+            <label for="customer-name-{{ block.id }}">Nombre completo *</label>
+            <input 
+              type="text" 
+              id="customer-name-{{ block.id }}" 
+              name="customerName" 
+              required
+              class="cotizador-input"
+              placeholder="Ingresa tu nombre completo"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="customer-email-{{ block.id }}">Email *</label>
+            <input 
+              type="email" 
+              id="customer-email-{{ block.id }}" 
+              name="customerEmail" 
+              required
+              class="cotizador-input"
+              placeholder="tu@email.com"
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="customer-phone-{{ block.id }}">Teléfono</label>
+            <input 
+              type="tel" 
+              id="customer-phone-{{ block.id }}" 
+              name="customerPhone"
+              class="cotizador-input"
+              placeholder="123-456-7890"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="customer-message-{{ block.id }}">Mensaje adicional</label>
+            <textarea 
+              id="customer-message-{{ block.id }}" 
+              name="message"
+              rows="3"
+              class="cotizador-textarea"
+              placeholder="Información adicional..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <button 
+            type="submit" 
+            class="cotizador-button"
+          >
+            Enviar Solicitud
+          </button>
+        </div>
+
+        <div class="cotizador-message-v2" id="cotizador-message-{{ block.id }}" style="display: none;"></div>
+      </form>
+    </div>
+
+    <!-- Panel de Éxito -->
+    <div class="cotizador-success-panel" id="success-panel-{{ block.id }}" style="display: none;">
+      <div class="success-content">
+        <div class="success-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <h2 class="success-title">¡Cotización Enviada Exitosamente!</h2>
+        <p class="success-message">
+          Tu solicitud ha sido recibida. Número de cotización: <strong id="success-quote-id-{{ block.id }}">PENDIENTE</strong>
+        </p>
+        <p class="success-submessage">Te contactaremos pronto con más información sobre tu préstamo.</p>
+        <button type="button" class="success-button" id="btn-reset-{{ block.id }}">
+          Nueva Cotización
+        </button>
       </div>
     </div>
 

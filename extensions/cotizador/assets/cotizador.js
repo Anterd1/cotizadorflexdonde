@@ -24,6 +24,10 @@ class CotizadorApp {
     this.selectedFrequency = null;
     this.selectedTerm = null;
     this.selectedPlan = 'tradicional';
+    // Campos de sucursal y cita
+    this.selectedBranchId = null;
+    this.selectedAppointmentDate = null;
+    this.selectedAppointmentTime = null;
     
     this.init();
   }
@@ -166,10 +170,12 @@ class CotizadorApp {
       catalogNav.style.display = 'block';
       catalogNav.style.visibility = 'visible';
       
-      // Mostrar loader de transición
+      // Loader de transición desactivado para evitar doble carga visual
+      /*
       if (transitionLoader) {
         transitionLoader.style.display = 'flex';
       }
+      */
     } else {
       console.error('❌ No se encontró catalog-nav');
     }
@@ -1202,14 +1208,32 @@ class CotizadorApp {
       this.selectedPlan = 'tradicional';
     }
     
-    // Inicializar toggle background
+    // Inicializar toggle background con clases pos-left/pos-right
     const toggleBg = document.getElementById(`toggle-bg-${this.blockId}`);
     if (toggleBg && this.selectedPlan === 'tradicional') {
-      toggleBg.style.left = '0.375rem';
-      toggleBg.classList.remove('right');
+      toggleBg.classList.remove('pos-right');
+      toggleBg.classList.add('pos-left');
     }
     
     this.selectPlan(this.selectedPlan);
+    
+    // Configurar listeners de los botones del toggle (asegurar que funcionen)
+    const btnTradicional = document.getElementById(`btn-tradicional-${this.blockId}`);
+    const btnFijo = document.getElementById(`btn-fijo-${this.blockId}`);
+    
+    if (btnTradicional) {
+      // Remover listeners anteriores si existen
+      const newBtnTradicional = btnTradicional.cloneNode(true);
+      btnTradicional.parentNode.replaceChild(newBtnTradicional, btnTradicional);
+      newBtnTradicional.addEventListener('click', () => this.selectPlan('tradicional'));
+    }
+    
+    if (btnFijo) {
+      // Remover listeners anteriores si existen
+      const newBtnFijo = btnFijo.cloneNode(true);
+      btnFijo.parentNode.replaceChild(newBtnFijo, btnFijo);
+      newBtnFijo.addEventListener('click', () => this.selectPlan('fijo'));
+    }
     
     // Configurar los botones "Volver" para reiniciar
     const backBtn = document.getElementById(`btn-simulate-${this.blockId}`);
@@ -1226,6 +1250,20 @@ class CotizadorApp {
         e.preventDefault();
         this.resetCatalog();
       };
+    }
+    
+    // Configurar el botón "Confirmar Préstamo"
+    const btnContinue = document.getElementById(`btn-continue-${this.blockId}`);
+    if (btnContinue) {
+      // Remover listeners anteriores si existen
+      const newBtnContinue = btnContinue.cloneNode(true);
+      btnContinue.parentNode.replaceChild(newBtnContinue, btnContinue);
+      newBtnContinue.addEventListener('click', () => {
+        console.log('Botón Confirmar Préstamo clickeado');
+        this.showContactForm();
+      });
+    } else {
+      console.warn(`Botón btn-continue-${this.blockId} no encontrado`);
     }
   }
 
@@ -1337,20 +1375,32 @@ class CotizadorApp {
     
     // Actualizar clases de botones
     if (btnTradicional) {
-      btnTradicional.classList.toggle('active', plan === 'tradicional');
+      if (plan === 'tradicional') {
+        btnTradicional.classList.add('active');
+        btnTradicional.classList.remove('inactive');
+      } else {
+        btnTradicional.classList.add('inactive');
+        btnTradicional.classList.remove('active');
+      }
     }
     if (btnFijo) {
-      btnFijo.classList.toggle('active', plan === 'fijo');
+      if (plan === 'fijo') {
+        btnFijo.classList.add('active');
+        btnFijo.classList.remove('inactive');
+      } else {
+        btnFijo.classList.add('inactive');
+        btnFijo.classList.remove('active');
+      }
     }
     
-    // Mover el fondo del toggle animado
+    // Mover el fondo del toggle animado usando clases pos-left y pos-right
     if (toggleBg) {
       if (plan === 'tradicional') {
-        toggleBg.style.left = '0.375rem';
-        toggleBg.classList.remove('right');
+        toggleBg.classList.remove('pos-right');
+        toggleBg.classList.add('pos-left');
       } else {
-        toggleBg.style.left = 'calc(50% + 0.375rem)';
-        toggleBg.classList.add('right');
+        toggleBg.classList.remove('pos-left');
+        toggleBg.classList.add('pos-right');
       }
     }
     
@@ -1404,8 +1454,10 @@ class CotizadorApp {
         btn.dataset.index = idx;
         btn.onclick = () => {
           // Actualizar activo
-          container.querySelectorAll('.frequency-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+          container.querySelectorAll('.frequency-btn').forEach(b => {
+            b.classList.remove('active', 'selected');
+          });
+          btn.classList.add('active', 'selected');
           
           this.selectedFrequency = productData.frecuencies[idx];
           console.log('Selected frequency:', this.selectedFrequency);
@@ -1525,33 +1577,27 @@ class CotizadorApp {
       if (finalCard) {
         finalCard.classList.add('amber');
       }
-      if (finalBar) {
-        finalBar.classList.add('loan-card-bar-amber');
-      }
       if (finalLabel) {
-        finalLabel.classList.add('loan-result-label-amber');
+        finalLabel.classList.add('amber-text');
       }
       if (finalSymbol) {
-        finalSymbol.classList.add('loan-currency-amber');
+        finalSymbol.classList.add('amber-text');
       }
       if (finalValue) {
-        finalValue.classList.add('loan-result-value-amber');
+        finalValue.classList.add('amber-text');
       }
     } else {
       if (finalCard) {
         finalCard.classList.remove('amber');
       }
-      if (finalBar) {
-        finalBar.classList.remove('loan-card-bar-amber');
-      }
       if (finalLabel) {
-        finalLabel.classList.remove('loan-result-label-amber');
+        finalLabel.classList.remove('amber-text');
       }
       if (finalSymbol) {
-        finalSymbol.classList.remove('loan-currency-amber');
+        finalSymbol.classList.remove('amber-text');
       }
       if (finalValue) {
-        finalValue.classList.remove('loan-result-value-amber');
+        finalValue.classList.remove('amber-text');
       }
     }
   }
@@ -1578,18 +1624,134 @@ class CotizadorApp {
     document.getElementById(`modal-${this.blockId}`).style.display = 'none';
   }
 
-  showContactForm() {
-    document.getElementById(`selected-products-data-${this.blockId}`).value = JSON.stringify([this.currentProduct]);
-    document.getElementById(`selected-loan-data-${this.blockId}`).value = JSON.stringify({
+  async showContactForm() {
+    console.log('showContactForm llamado');
+    console.log('selectedPlan:', this.selectedPlan);
+    console.log('selectedFrequency:', this.selectedFrequency);
+    console.log('selectedTerm:', this.selectedTerm);
+    console.log('currentProduct:', this.currentProduct);
+    
+    // Verificar datos necesarios
+    if (!this.selectedFrequency || !this.selectedTerm) {
+      console.error('Faltan datos del préstamo');
+      alert('Error: Faltan datos del préstamo. Por favor, completa la selección.');
+      return;
+    }
+    
+    // Ocultar paneles de préstamo
+    const mainPanels = document.getElementById(`main-panels-${this.blockId}`);
+    const catalogNav = document.getElementById(`catalog-nav-${this.blockId}`);
+    if (mainPanels) mainPanels.style.display = 'none';
+    if (catalogNav) catalogNav.style.display = 'none';
+    
+    // Mostrar sección de selección de sucursal y cita
+    const appointmentSection = document.getElementById(`appointment-section-${this.blockId}`);
+    if (appointmentSection) {
+      appointmentSection.style.display = 'block';
+      appointmentSection.scrollIntoView({ behavior: 'smooth' });
+      
+      // Cargar sucursales si no están cargadas
+      await this.loadBranches();
+      
+      // Configurar fecha mínima (hoy)
+      const dateInput = document.getElementById(`appointment-date-${this.blockId}`);
+      if (dateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.setAttribute('min', today);
+      }
+      
+      // Configurar botón continuar
+      const btnContinue = document.getElementById(`btn-continue-appointment-${this.blockId}`);
+      if (btnContinue) {
+        btnContinue.onclick = () => this.showContactFormStep2();
+      }
+    } else {
+      // Si no hay sección de cita, mostrar directamente el formulario de contacto
+      this.showContactFormStep2();
+    }
+  }
+
+  async loadBranches() {
+    const select = document.getElementById(`branch-select-${this.blockId}`);
+    if (!select) return;
+    
+    try {
+      const response = await fetch('/apps/cotizador/branches');
+      if (!response.ok) {
+        throw new Error('Error cargando sucursales');
+      }
+      
+      const branches = await response.json();
+      
+      if (branches.length > 0) {
+        select.innerHTML = '<option value="">Selecciona una sucursal</option>';
+        branches.forEach(branch => {
+          const option = document.createElement('option');
+          option.value = branch.ID_SUC || branch.id_suc || '';
+          const branchName = branch['NOMBRE DE SUCURSAL'] || branch.nombre_sucursal || branch.name || 'Sucursal';
+          const estado = branch.ESTADO || branch.estado || '';
+          option.textContent = `${branchName}${estado ? ' - ' + estado : ''}`;
+          select.appendChild(option);
+        });
+      } else {
+        select.innerHTML = '<option value="">No hay sucursales disponibles</option>';
+      }
+    } catch (error) {
+      console.error('Error cargando sucursales:', error);
+      select.innerHTML = '<option value="">Error cargando sucursales</option>';
+    }
+  }
+
+  showContactFormStep2() {
+    // Validar selección de sucursal y cita
+    const branchId = document.getElementById(`branch-select-${this.blockId}`)?.value;
+    const appointmentDate = document.getElementById(`appointment-date-${this.blockId}`)?.value;
+    const appointmentTime = document.getElementById(`appointment-time-${this.blockId}`)?.value;
+    
+    if (!branchId || !appointmentDate || !appointmentTime) {
+      alert('Por favor completa todos los campos de sucursal y cita');
+      return;
+    }
+    
+    // Guardar datos temporalmente
+    this.selectedBranchId = branchId;
+    this.selectedAppointmentDate = appointmentDate;
+    this.selectedAppointmentTime = appointmentTime;
+    
+    // Ocultar sección de cita y mostrar formulario de contacto
+    const appointmentSection = document.getElementById(`appointment-section-${this.blockId}`);
+    const formSection = document.getElementById(`form-section-${this.blockId}`);
+    
+    if (appointmentSection) appointmentSection.style.display = 'none';
+    
+    if (formSection) {
+      // Llenar datos del formulario
+      const selectedProductsData = document.getElementById(`selected-products-data-${this.blockId}`);
+      const selectedLoanData = document.getElementById(`selected-loan-data-${this.blockId}`);
+      
+      if (selectedProductsData && this.currentProduct) {
+        selectedProductsData.value = JSON.stringify([this.currentProduct]);
+      }
+      
+      if (selectedLoanData) {
+        selectedLoanData.value = JSON.stringify({
+          product: this.currentProduct?.name || 'Producto Desconocido',
       plan: this.selectedPlan,
       frequency: this.selectedFrequency.frecuency,
       term: this.selectedTerm,
-      loan_amount: this.selectedFrequency.loan
+          loan_amount: this.selectedFrequency.loan,
+          formatted_loan: this.selectedFrequency.formatted_loan,
+          formatted_payment: this.selectedTerm.formatted_payment,
+          formatted_last_payment: this.selectedTerm.formatted_last_payment
     });
+      }
     
-    const formSection = document.getElementById(`form-section-${this.blockId}`);
     formSection.style.display = 'block';
     formSection.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      console.error('No se encontró el formulario de contacto');
+      alert('Error: No se encontró el formulario de contacto. Por favor, recarga la página e intenta de nuevo.');
+    }
   }
 
   resetSimulation() {
@@ -1605,8 +1767,43 @@ class CotizadorApp {
   resetAll() {
     this.resetSimulation();
     this.currentCategory = null;
-    document.getElementById(`success-panel-${this.blockId}`).style.display = 'none';
-    document.getElementById(`cotizador-form-${this.blockId}`).reset();
+    
+    // Limpiar campos de sucursal y cita
+    this.selectedBranchId = null;
+    this.selectedAppointmentDate = null;
+    this.selectedAppointmentTime = null;
+    
+    // Ocultar panel de éxito
+    const successPanel = document.getElementById(`success-panel-${this.blockId}`);
+    if (successPanel) {
+      successPanel.style.display = 'none';
+    }
+    
+    // Ocultar sección de cita
+    const appointmentSection = document.getElementById(`appointment-section-${this.blockId}`);
+    if (appointmentSection) {
+      appointmentSection.style.display = 'none';
+    }
+    
+    // Resetear formulario si existe
+    const form = document.getElementById(`cotizador-form-${this.blockId}`);
+    if (form) {
+      form.reset();
+    }
+    
+    // Resetear campos de cita
+    const branchSelect = document.getElementById(`branch-select-${this.blockId}`);
+    const appointmentDate = document.getElementById(`appointment-date-${this.blockId}`);
+    const appointmentTime = document.getElementById(`appointment-time-${this.blockId}`);
+    if (branchSelect) branchSelect.value = '';
+    if (appointmentDate) appointmentDate.value = '';
+    if (appointmentTime) appointmentTime.value = '';
+    
+    // Ocultar mensajes
+    const messageDiv = document.getElementById(`cotizador-message-${this.blockId}`);
+    if (messageDiv) {
+      messageDiv.style.display = 'none';
+    }
     
     // Mostrar título y descripción nuevamente
     const header = document.querySelector(`#cotizador-${this.blockId} .cotizador-header`);
@@ -1615,10 +1812,16 @@ class CotizadorApp {
     }
     
     // Mostrar categorías y resetear navegación
-    document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
-    document.getElementById(`categories-${this.blockId}`).style.display = 'grid';
+    const catalogNav = document.getElementById(`catalog-nav-${this.blockId}`);
+    const categories = document.getElementById(`categories-${this.blockId}`);
+    
+    if (catalogNav) catalogNav.style.display = 'none';
+    if (categories) {
+      categories.style.display = 'grid';
+      categories.scrollIntoView({ behavior: 'smooth' });
+    }
+    
     this.updateDetailsPanel();
-    document.getElementById(`categories-${this.blockId}`).scrollIntoView({ behavior: 'smooth' });
   }
 
   // MÉTODO DUPLICADO ELIMINADO - Se usa la versión de la línea 674
@@ -1768,13 +1971,27 @@ class CotizadorApp {
     
     const button = e.target.querySelector('button[type="submit"]');
     const messageDiv = document.getElementById(`cotizador-message-${this.blockId}`);
-    const originalText = button.textContent;
+    const originalText = button ? button.textContent : 'Enviar Solicitud';
+    
+    if (button) {
     button.disabled = true;
     button.textContent = 'Enviando...';
+    }
 
     const formData = new FormData(e.target);
     formData.append('shop', this.config.shop);
     formData.append('source', 'storefront');
+    
+    // Agregar datos de sucursal y cita
+    if (this.selectedBranchId) {
+      formData.append('branchId', this.selectedBranchId);
+    }
+    if (this.selectedAppointmentDate) {
+      formData.append('appointmentDate', this.selectedAppointmentDate);
+    }
+    if (this.selectedAppointmentTime) {
+      formData.append('appointmentTime', this.selectedAppointmentTime);
+    }
 
     try {
       const response = await fetch('/apps/cotizador', {
@@ -1786,16 +2003,48 @@ class CotizadorApp {
 
       if (response.ok && result.success) {
         // Ocultar secciones anteriores
-        document.getElementById(`form-section-${this.blockId}`).style.display = 'none';
-        document.getElementById(`main-panels-${this.blockId}`).style.display = 'none';
-        document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
-        document.getElementById(`categories-${this.blockId}`).style.display = 'none';
+        const formSection = document.getElementById(`form-section-${this.blockId}`);
+        const mainPanels = document.getElementById(`main-panels-${this.blockId}`);
+        const catalogNav = document.getElementById(`catalog-nav-${this.blockId}`);
+        const categories = document.getElementById(`categories-${this.blockId}`);
+        
+        if (formSection) formSection.style.display = 'none';
+        if (mainPanels) mainPanels.style.display = 'none';
+        if (catalogNav) catalogNav.style.display = 'none';
+        if (categories) categories.style.display = 'none';
         
         // Mostrar panel de éxito
-        document.getElementById(`success-quote-id-${this.blockId}`).textContent = result.quoteNumber || 'PENDIENTE';
+        const successQuoteId = document.getElementById(`success-quote-id-${this.blockId}`);
         const successPanel = document.getElementById(`success-panel-${this.blockId}`);
+        
+        if (successQuoteId) {
+          successQuoteId.textContent = result.quoteNumber || 'PENDIENTE';
+        }
+        
+        if (successPanel) {
         successPanel.style.display = 'block';
         successPanel.scrollIntoView({ behavior: 'smooth' });
+          
+          // Configurar el botón de reset en el panel de éxito
+          const resetBtn = document.getElementById(`btn-reset-${this.blockId}`);
+          if (resetBtn) {
+            // Remover listeners anteriores si existen
+            const newResetBtn = resetBtn.cloneNode(true);
+            resetBtn.parentNode.replaceChild(newResetBtn, resetBtn);
+            newResetBtn.addEventListener('click', () => {
+              this.resetAll();
+            });
+          }
+        } else {
+          // Si no hay panel de éxito, mostrar mensaje en el formulario
+          if (messageDiv) {
+            messageDiv.className = 'cotizador-message-v2 success';
+            messageDiv.textContent = `¡Éxito! Cotización enviada. Número: ${result.quoteNumber || 'PENDIENTE'}`;
+            messageDiv.style.display = 'block';
+          } else {
+            alert(`¡Cotización enviada exitosamente!\n\nNúmero de cotización: ${result.quoteNumber || 'PENDIENTE'}\n\nTe contactaremos pronto.`);
+          }
+        }
         
         // Limpiar formulario
         e.target.reset();
@@ -1804,12 +2053,19 @@ class CotizadorApp {
       }
     } catch (error) {
       console.error("Error enviando cotización:", error);
+      
+      if (messageDiv) {
       messageDiv.className = 'cotizador-message-v2 error';
-      messageDiv.textContent = 'Error: No se pudo enviar. Por favor intenta de nuevo.';
+        messageDiv.textContent = `Error: No se pudo enviar. Por favor intenta de nuevo.\n${error.message || ''}`;
       messageDiv.style.display = 'block';
+      } else {
+        alert(`Error: No se pudo enviar la cotización.\n\n${error.message || 'Por favor intenta de nuevo.'}`);
+      }
     } finally {
+      if (button) {
       button.disabled = false;
       button.textContent = originalText;
+      }
     }
   }
 }
