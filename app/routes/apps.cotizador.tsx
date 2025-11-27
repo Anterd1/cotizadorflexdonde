@@ -76,6 +76,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const source = formData.get("source") as string || "storefront";
     const selectedProductsJson = formData.get("selectedProducts") as string;
     const selectedLoanJson = formData.get("selectedLoan") as string;
+    // Campos de sucursal y cita
+    const branchId = formData.get("branchId") as string;
+    const appointmentDate = formData.get("appointmentDate") as string;
+    const appointmentTime = formData.get("appointmentTime") as string;
 
     console.log("📋 [App Proxy] Datos recibidos:", {
       customerName,
@@ -84,7 +88,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       message: message?.substring(0, 50),
       source,
       products: selectedProductsJson ? "Sí" : "No",
-      loan: selectedLoanJson ? "Sí" : "No"
+      loan: selectedLoanJson ? "Sí" : "No",
+      branchId: branchId || "No",
+      appointmentDate: appointmentDate || "No",
+      appointmentTime: appointmentTime || "No"
     });
 
     // 3. Validaciones
@@ -152,6 +159,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // pero suficiente para operaciones básicas si los scopes están bien.
     // Si falla, habría que usar un cliente offline, pero probemos así primero.
     
+    // Construir notas con información de sucursal y cita
+    let appointmentInfo = "";
+    if (branchId || appointmentDate || appointmentTime) {
+      appointmentInfo = `\n\nInformación de Cita:\n`;
+      if (branchId) appointmentInfo += `- Sucursal ID: ${branchId}\n`;
+      if (appointmentDate) appointmentInfo += `- Fecha: ${appointmentDate}\n`;
+      if (appointmentTime) appointmentInfo += `- Hora: ${appointmentTime}\n`;
+    }
+
     const quote = await saveQuote(admin, shopId, {
       customerName,
       customerEmail,
@@ -166,8 +182,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       total: subtotal,
       notes: (message ? `Solicitud desde storefront:\n${message}` : "") +
              (items.length > 0 ? `\n\nCotización con ${items.length} producto(s) seleccionado(s) desde catálogo` : "Solicitud de cotización desde el storefront") +
-             loanInfo,
+             loanInfo +
+             appointmentInfo,
       validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      // Campos de sucursal y cita
+      branchId: branchId || undefined,
+      appointmentDate: appointmentDate || undefined,
+      appointmentTime: appointmentTime || undefined,
     });
 
     console.log(`✅ [App Proxy] Cotización creada: ${quote.quoteNumber}`);

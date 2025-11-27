@@ -39,6 +39,10 @@ export interface Quote {
   validUntil: Date | string;
   createdAt: Date | string;
   updatedAt: Date | string;
+  // Campos de sucursal y cita
+  branchId?: string;        // ID_SUC de la sucursal seleccionada
+  appointmentDate?: string;  // Fecha de cita (YYYY-MM-DD)
+  appointmentTime?: string;  // Hora de cita (HH:MM)
 }
 
 /**

@@ -1,8 +1,8 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "c678951648e014bf5b2dcad8a2dd95c3"
-name = "cotizadorv3"
-application_url = "https://transmission-wrestling-ment-pumps.trycloudflare.com"
+client_id = "f6870fcf56f55630ebabb28cfb522b40"
+name = "cotizadorv5"
+application_url = "https://cotizadorv3.fly.dev"
 embedded = true
 
 [build]
@@ -21,12 +21,14 @@ api_version = "2026-01"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products, read_products, write_metaobjects, read_metaobjects"
-
-[app_proxy]
-url = "https://transmission-wrestling-ment-pumps.trycloudflare.com/apps/cotizador"
-subpath = "cotizador"
-prefix = "apps"
+scopes = "read_metaobjects,read_products,write_metaobjects,write_products"
 
 [auth]
-redirect_urls = [ "https://transmission-wrestling-ment-pumps.trycloudflare.com/api/auth" ]
+redirect_urls = [
+  "https://cotizadorv3.fly.dev/api/auth"
+]
+
+[app_proxy]
+url = "https://cotizadorv3.fly.dev/apps/cotizador"
+subpath = "cotizador"
+prefix = "apps"

@@ -1,0 +1,48 @@
+# fly.toml app configuration file generated for cotizadorv3 on 2025-01-27T00:00:00Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = "cotizadorv3"
+primary_region = "iad"
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  DATABASE_URL = "file:/data/prod.sqlite"
+
+[[services]]
+  http_checks = []
+  internal_port = 3000
+  processes = ["app"]
+  protocol = "tcp"
+  script_checks = []
+
+  [services.concurrency]
+    hard_limit = 25
+    soft_limit = 20
+    type = "connections"
+
+  [[services.ports]]
+    force_https = true
+    handlers = ["http"]
+    port = 80
+    to_port = 3000
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+    to_port = 3000
+
+  [[services.tcp_checks]]
+    grace_period = "1s"
+    interval = "15s"
+    restart_limit = 0
+    timeout = "2s"
+
+[[mounts]]
+  source = "data"
+  destination = "/data"
+
+

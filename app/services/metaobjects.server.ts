@@ -29,6 +29,10 @@ function quoteToMetaobjectFields(quote: Quote) {
     { key: "loan_info", value: "" }, // Por ahora vacío, se puede extraer de notes
     { key: "origin", value: quote.notes?.includes('storefront') ? 'storefront' : 'admin' },
     { key: "valid_until", value: new Date(quote.validUntil).toISOString().split('T')[0] }, // YYYY-MM-DD
+    // Campos de sucursal y cita
+    { key: "branch_id", value: quote.branchId || "" },
+    { key: "appointment_date", value: quote.appointmentDate || "" },
+    { key: "appointment_time", value: quote.appointmentTime || "" },
   ];
 }
 
@@ -60,6 +64,10 @@ function metaobjectToQuote(metaobject: any): Quote {
     validUntil: fieldsMap.valid_until || new Date().toISOString(),
     createdAt: fieldsMap.created_at || new Date().toISOString(),
     updatedAt: fieldsMap.update_at || fieldsMap.updated_at || fieldsMap.created_at || new Date().toISOString(),
+    // Campos de sucursal y cita
+    branchId: fieldsMap.branch_id || undefined,
+    appointmentDate: fieldsMap.appointment_date || undefined,
+    appointmentTime: fieldsMap.appointment_time || undefined,
   };
 }
 
