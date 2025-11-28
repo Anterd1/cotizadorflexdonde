@@ -33,6 +33,22 @@ class CotizadorApp {
   }
 
   init() {
+    // Aplanar estructura de categorías para que el Grid funcione correctamente en mobile
+    const categoriesContainer = document.getElementById(`categories-${this.blockId}`);
+    if (categoriesContainer) {
+      const subDivs = Array.from(categoriesContainer.children).filter(child => child.tagName === 'DIV');
+      if (subDivs.length > 0) {
+        const fragment = document.createDocumentFragment();
+        subDivs.forEach(div => {
+          while (div.firstChild) {
+            fragment.appendChild(div.firstChild);
+          }
+          div.remove();
+        });
+        categoriesContainer.appendChild(fragment);
+      }
+    }
+
     // Category buttons - buscar por .category-item que es la clase real en el HTML
     const categoryButtons = document.querySelectorAll(`#categories-${this.blockId} .category-item`);
     
@@ -167,21 +183,20 @@ class CotizadorApp {
     const transitionLoader = document.getElementById(`screen-transition-loader-${this.blockId}`);
     
     if (catalogNav) {
-      catalogNav.style.display = 'block';
-      catalogNav.style.visibility = 'visible';
-      
-      // Loader de transición desactivado para evitar doble carga visual
-      /*
-      if (transitionLoader) {
-        transitionLoader.style.display = 'flex';
-      }
-      */
+      catalogNav.style.setProperty('display', 'block', 'important');
+      catalogNav.style.setProperty('visibility', 'visible', 'important');
     } else {
       console.error('❌ No se encontró catalog-nav');
     }
     
-    if (mainPanels) mainPanels.style.display = 'none';
-    if (categoriesDiv) categoriesDiv.style.display = 'none';
+    if (mainPanels) mainPanels.style.setProperty('display', 'none', 'important');
+    if (categoriesDiv) categoriesDiv.style.setProperty('display', 'none', 'important');
+    
+    // Hacer scroll al inicio del cotizador
+    const cotizadorBlock = document.getElementById(`cotizador-${this.blockId}`);
+    if (cotizadorBlock) {
+      cotizadorBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     
     // Actualizar panel de detalles con la categoría seleccionada
     this.updateDetailsPanel();
@@ -342,6 +357,44 @@ class CotizadorApp {
         return;
       }
       
+      // Auto-selección para saltar redundancia (ej: Consolas -> Consolas -> Marca)
+      // Solo aplicar si estamos en el primer nivel (catalogPath vacío)
+      console.log(`🔍 Revisando auto-selección. Categoría: ${this.currentCategory}, Path: ${this.catalogPath.length}`);
+      
+      if (this.catalogPath.length === 0 && this.currentCategory) {
+        const categoryMap = {
+          'consoles': ['Consola de Videojuego', 'Consolas', 'Videojuegos'],
+          'celulares': ['Celular', 'Celulares', 'Telefonia', 'Telefonía'],
+          'laptops': ['Laptop', 'Laptops', 'Computadoras', 'Portátiles'],
+          'tablets': ['Tableta', 'Tabletas', 'Tablets', 'iPad'],
+          'smartwatch': ['Smartwatch', 'Relojes Inteligentes', 'Wearables']
+          // No aplicamos a 'electronics' porque ese sí requiere elegir subcategoría
+        };
+
+        const targetKeywords = categoryMap[this.currentCategory];
+        
+        if (targetKeywords && targetKeywords.length > 0 && result.catalog && result.catalog.data) {
+          console.log(`🔍 Buscando keywords: ${targetKeywords.join(', ')} en datos:`, result.catalog.data.map(i => i.name));
+          
+          const autoItem = result.catalog.data.find(item => 
+            targetKeywords.some(keyword => item.name.toLowerCase().includes(keyword.toLowerCase()))
+          );
+
+          if (autoItem) {
+            console.log(`🔄 Auto-seleccionando categoría redundante: ${autoItem.name}`);
+            
+            // Ocultar loader PRIMERO para evitar parpadeos
+            loadingDiv.style.setProperty('display', 'none', 'important');
+            
+            // Simular selección automática y salir
+            this.selectCatalogItem(autoItem, result.catalog.catalog_id);
+            return; 
+          } else {
+            console.log(`⚠️ No se encontró coincidencia para auto-selección.`);
+          }
+        }
+      }
+      
       // Ocultar loader PRIMERO
       loadingDiv.style.setProperty('display', 'none', 'important');
       loadingDiv.style.minHeight = ''; // Limpiar altura mínima
@@ -453,6 +506,134 @@ class CotizadorApp {
         }
       }
       
+      // Determinar si es un catálogo de marcas, modelos o características para mostrar diseño especial
+      const isBrandCatalog = ['brand_catalog', 'brand_vehicles'].includes(catalog.catalog_id);
+      const isModelCatalog = ['model_catalog', 'model_vehicles'].includes(catalog.catalog_id);
+      const isFeatureCatalog = ['feature_1_catalog', 'feature_2_catalog', 'feature_3_catalog'].includes(catalog.catalog_id);
+      const isMetalCatalog = ['metal_gold_catalog', 'metal_silver_catalog'].includes(catalog.catalog_id);
+      
+      if (isBrandCatalog) {
+        this.renderBrandSelection(catalog, dropdownsContainer);
+      } else if (isModelCatalog) {
+        this.renderModelSelection(catalog, dropdownsContainer);
+      } else if (isFeatureCatalog) {
+        this.renderFeatureSelection(catalog, dropdownsContainer);
+      } else if (isMetalCatalog) {
+        this.renderMetalCalculator(catalog, dropdownsContainer);
+      } else {
+        this.renderStandardDropdown(catalog, dropdownsContainer);
+      }
+      
+      // Asegurar visibilidad final con múltiples métodos
+      dropdownsContainer.style.display = 'flex';
+      dropdownsContainer.style.flexDirection = 'column';
+      dropdownsContainer.style.visibility = 'visible';
+      dropdownsContainer.style.opacity = '1';
+      dropdownsContainer.style.width = '100%';
+      dropdownsContainer.style.maxWidth = '620px';
+      dropdownsContainer.style.alignItems = 'flex-start';
+      dropdownsContainer.setAttribute('style', 
+        'display: flex !important; ' +
+        'flex-direction: column !important; ' +
+        'visibility: visible !important; ' +
+        'opacity: 1 !important; ' +
+        'width: 100% !important; ' +
+        'max-width: 620px !important; ' +
+        'align-items: flex-start !important;'
+      );
+      
+      // Forzar reflow para asegurar que el navegador renderice
+      dropdownsContainer.offsetHeight;
+      
+      // Verificar que el padre también esté visible
+      const parentPanel = dropdownsContainer.closest('.catalog-navigation-panel');
+      if (parentPanel) {
+        parentPanel.style.display = 'flex';
+        parentPanel.style.visibility = 'visible';
+      }
+      
+    } catch (error) {
+      console.error('❌ Error en displayCatalog:', error);
+      // Intentar mostrar error en UI
+      const container = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+      if (container) {
+        container.innerHTML = `<p style="color: red">Error visualizando opciones: ${error.message}</p>`;
+        container.style.display = 'block';
+      }
+    }
+  }
+
+  createTradeInHeader() {
+    const header = document.createElement('div');
+    header.className = 'tradein-header';
+    
+    // Botón de volver
+    const backBtn = document.createElement('button');
+    backBtn.className = 'tradein-back-btn';
+    backBtn.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </svg>
+    `;
+    backBtn.onclick = (e) => {
+      e.preventDefault();
+      this.goBackOneStep();
+    };
+    header.appendChild(backBtn);
+    
+    // Título "COTIZADOR"
+    const tradeinTitle = document.createElement('div');
+    tradeinTitle.className = 'tradein-title';
+    tradeinTitle.textContent = 'COTIZADOR';
+    header.appendChild(tradeinTitle);
+    
+    /* Stepper temporalmente comentado para evitar traslape
+    const stepper = document.createElement('div');
+    stepper.className = 'tradein-stepper';
+    
+    const totalSteps = 7; // Ajustar según el flujo
+    const currentStep = this.catalogPath.length;
+    
+    for (let i = 0; i < totalSteps; i++) {
+      const dot = document.createElement('div');
+      dot.className = i <= currentStep ? 'tradein-step active' : 'tradein-step';
+      stepper.appendChild(dot);
+    }
+    
+    header.appendChild(stepper);
+    */
+    
+    return header;
+  }
+
+  goBackOneStep() {
+    if (this.catalogPath.length === 0) {
+      // Si no hay pasos, volver a categorías
+      this.resetCatalog();
+      return;
+    }
+    
+    // Retroceder un paso
+    this.catalogPath.pop();
+    
+    if (this.catalogPath.length === 0) {
+      // Si después de retroceder no quedan pasos, volver a categorías
+      this.resetCatalog();
+    } else {
+      // Recargar el catálogo del paso anterior
+      const lastItem = this.catalogPath[this.catalogPath.length - 1];
+      const nextCatalog = this.getNextCatalog(lastItem.catalogId, lastItem);
+      
+      if (nextCatalog) {
+        this.loadCatalog(nextCatalog.catalogId, nextCatalog.params);
+      } else {
+        this.resetCatalog();
+      }
+    }
+  }
+
+  renderStandardDropdown(catalog, container) {
       // Determinar el label del dropdown basado en el catalogId
       const dropdownLabel = this.getDropdownLabel(catalog.catalog_id);
       
@@ -489,47 +670,519 @@ class CotizadorApp {
       });
       
       dropdownWrapper.appendChild(dropdown);
-      dropdownsContainer.appendChild(dropdownWrapper);
-      
-      // Asegurar visibilidad final con múltiples métodos
-      dropdownsContainer.style.display = 'flex';
-      dropdownsContainer.style.flexDirection = 'column';
-      dropdownsContainer.style.visibility = 'visible';
-      dropdownsContainer.style.opacity = '1';
-      dropdownsContainer.style.width = '100%';
-      dropdownsContainer.style.maxWidth = '620px';
-      dropdownsContainer.style.alignItems = 'flex-start';
-      dropdownsContainer.setAttribute('style', 
-        'display: flex !important; ' +
-        'flex-direction: column !important; ' +
-        'visibility: visible !important; ' +
-        'opacity: 1 !important; ' +
-        'width: 100% !important; ' +
-        'max-width: 620px !important; ' +
-        'align-items: flex-start !important;'
-      );
-      
-      // Forzar reflow para asegurar que el navegador renderice
-      dropdownsContainer.offsetHeight;
-      
-      // Verificar que el padre también esté visible
-      const parentPanel = dropdownsContainer.closest('.catalog-navigation-panel');
-      if (parentPanel) {
-        parentPanel.style.display = 'flex';
-        parentPanel.style.visibility = 'visible';
-      }
+      container.appendChild(dropdownWrapper);
       
       this.attachDropdownListener(dropdown, catalog.data, catalog.catalog_id);
+  }
+
+  renderBrandSelection(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    // Crear estructura principal
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper';
+    
+    // Header con botón de volver y stepper
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    // Título
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = '¿De qué marca es?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.textContent = 'Selecciona la marca de tu dispositivo.';
+    wrapper.appendChild(subtitle);
+    
+    // Barra de búsqueda
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'brand-search-container';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'brand-search-input';
+    searchInput.placeholder = 'Buscar marca...';
+    // Icono de lupa (opcional, con CSS)
+    searchContainer.appendChild(searchInput);
+    wrapper.appendChild(searchContainer);
+    
+    // Definir marcas populares y sus estilos
+    const popularBrands = [
+      { name: 'APPLE', color: '#111827', text: 'white' },
+      { name: 'SAMSUNG', color: '#3b82f6', text: 'white' },
+      { name: 'XIAOMI', color: '#f97316', text: 'white' },
+      { name: 'MOTOROLA', color: '#6366f1', text: 'white' }
+    ];
+    
+    // Separar datos
+    const popularItems = [];
+    const otherItems = [];
+    
+    catalog.data.forEach((item, index) => {
+      const brandName = item.name.toUpperCase();
+      const popularConfig = popularBrands.find(b => brandName.includes(b.name));
       
-    } catch (error) {
-      console.error('❌ Error en displayCatalog:', error);
-      // Intentar mostrar error en UI
-      const container = document.getElementById(`catalog-dropdowns-${this.blockId}`);
-      if (container) {
-        container.innerHTML = `<p style="color: red">Error visualizando opciones: ${error.message}</p>`;
-        container.style.display = 'block';
+      if (popularConfig) {
+        popularItems.push({ item, index, config: popularConfig });
+      } else {
+        otherItems.push({ item, index });
+      }
+    });
+    
+    // Grid de marcas populares
+    if (popularItems.length > 0) {
+      const popularGrid = document.createElement('div');
+      popularGrid.className = 'popular-brands-grid';
+      
+      popularItems.forEach(({ item, index, config }) => {
+        const btn = document.createElement('button');
+        btn.className = 'brand-card-btn';
+        btn.style.backgroundColor = config.color;
+        btn.style.color = config.text;
+        btn.innerHTML = `
+          <span class="brand-name">${item.name}</span>
+          <div class="brand-card-decoration"></div>
+        `;
+        btn.onclick = (e) => {
+          e.preventDefault();
+          console.log('👉 Click en marca popular:', item.name);
+          this.selectCatalogItem(item, catalog.catalog_id);
+        };
+        popularGrid.appendChild(btn);
+      });
+      
+      wrapper.appendChild(popularGrid);
+    }
+    
+    // Lista de otras marcas
+    const othersList = document.createElement('div');
+    othersList.className = 'other-brands-list';
+    
+    const renderList = (items) => {
+      othersList.innerHTML = '';
+      if (items.length === 0) {
+        othersList.innerHTML = '<div class="no-results">No se encontraron marcas</div>';
+        return;
+      }
+      
+      items.forEach(({ item, index }) => {
+        const row = document.createElement('div');
+        row.className = 'brand-list-item';
+        row.innerHTML = `
+          <span>${item.name}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        `;
+        row.onclick = (e) => {
+          e.preventDefault();
+          console.log('👉 Click en otra marca:', item.name);
+          this.selectCatalogItem(item, catalog.catalog_id);
+        };
+        othersList.appendChild(row);
+      });
+    };
+    
+    renderList(otherItems);
+    wrapper.appendChild(othersList);
+    container.appendChild(wrapper);
+    
+    // Lógica de búsqueda
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      const allItems = [...popularItems, ...otherItems];
+      
+      if (term === '') {
+        // Restaurar vista original
+        if (wrapper.contains(document.querySelector('.popular-brands-grid'))) {
+           document.querySelector('.popular-brands-grid').style.display = 'grid';
+        }
+        renderList(otherItems);
+      } else {
+        // Ocultar populares y filtrar lista completa
+        const popularGrid = document.querySelector('.popular-brands-grid');
+        if (popularGrid) popularGrid.style.display = 'none';
+        
+        const filtered = allItems.filter(({ item }) => item.name.toLowerCase().includes(term));
+        renderList(filtered);
+      }
+    });
+  }
+
+  renderModelSelection(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    // Obtener la marca seleccionada del catalogPath
+    const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_catalog' || p.catalogId === 'brand_vehicles');
+    const brandName = brandItem ? brandItem.name : 'la marca';
+    
+    // Crear estructura principal
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper'; // Reutilizamos los mismos estilos
+    
+    // Header con botón de volver y stepper
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    // Título
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = '¿Qué modelo es?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.innerHTML = `Marca: <strong>${brandName}</strong>`;
+    wrapper.appendChild(subtitle);
+    
+    // Barra de búsqueda
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'brand-search-container';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'brand-search-input';
+    searchInput.placeholder = `Buscar modelo ${brandName}...`;
+    searchContainer.appendChild(searchInput);
+    wrapper.appendChild(searchContainer);
+    
+    // Lista de modelos (todos en lista, sin destacados)
+    const modelsList = document.createElement('div');
+    modelsList.className = 'other-brands-list'; // Reutilizamos estilos
+    
+    const renderList = (items) => {
+      modelsList.innerHTML = '';
+      if (items.length === 0) {
+        modelsList.innerHTML = '<div class="no-results">No se encontraron modelos</div>';
+        return;
+      }
+      
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'brand-list-item model-list-item';
+        row.innerHTML = `
+          <div class="model-info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+              <line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+            <span>${item.name}</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        `;
+        row.onclick = (e) => {
+          e.preventDefault();
+          console.log('👉 Click en modelo:', item.name);
+          this.selectCatalogItem(item, catalog.catalog_id);
+        };
+        modelsList.appendChild(row);
+      });
+    };
+    
+    // Renderizar lista inicial
+    const allItems = catalog.data.map((item, index) => ({ item, index }));
+    renderList(catalog.data);
+    
+    wrapper.appendChild(modelsList);
+    container.appendChild(wrapper);
+    
+    // Lógica de búsqueda
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      
+      if (term === '') {
+        renderList(catalog.data);
+      } else {
+        const filtered = catalog.data.filter(item => item.name.toLowerCase().includes(term));
+        renderList(filtered);
+      }
+    });
+  }
+
+  renderFeatureSelection(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    // Obtener información del producto seleccionado
+    const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_catalog' || p.catalogId === 'brand_vehicles');
+    const modelItem = this.catalogPath.find(p => p.catalogId === 'model_catalog' || p.catalogId === 'model_vehicles');
+    
+    const brandName = brandItem ? brandItem.name : '';
+    const modelName = modelItem ? modelItem.name : '';
+    
+    // Determinar el paso actual
+    const currentStep = this.catalogPath.length;
+    const totalSteps = 7; // Ajustar según tu flujo
+    
+    // Determinar el título de la característica
+    const featureTitles = {
+      'feature_1_catalog': 'Almacenamiento',
+      'feature_2_catalog': 'Memoria RAM',
+      'feature_3_catalog': 'Estado'
+    };
+    const featureTitle = featureTitles[catalog.catalog_id] || 'Selecciona una opción';
+    
+    // Iconos para cada tipo de característica
+    const featureIcons = {
+      'feature_1_catalog': '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/>',
+      'feature_2_catalog': '<rect x="2" y="7" width="20" height="10" rx="1"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/>',
+      'feature_3_catalog': '<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>'
+    };
+    const featureIcon = featureIcons[catalog.catalog_id] || '<circle cx="12" cy="12" r="10"/>';
+    
+    // Crear estructura principal
+    const wrapper = document.createElement('div');
+    wrapper.className = 'feature-selection-wrapper';
+    
+    // Header con botón de volver y stepper
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    // Título
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = featureTitle;
+    wrapper.appendChild(title);
+    
+    // Subtítulo con paso
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle feature-step';
+    subtitle.textContent = `Característica ${catalog.catalog_id.includes('1') ? '1' : catalog.catalog_id.includes('2') ? '2' : '3'}`;
+    wrapper.appendChild(subtitle);
+    
+    // Badge del producto seleccionado
+    if (brandName && modelName) {
+      const productBadge = document.createElement('div');
+      productBadge.className = 'product-badge';
+      productBadge.innerHTML = `
+        <div class="product-badge-icon-simple">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+          </svg>
+        </div>
+        <span class="product-badge-text">${brandName} ${modelName}</span>
+      `;
+      wrapper.appendChild(productBadge);
+      
+      // Mostrar característica previa seleccionada (feature_1 si estamos en feature_2)
+      if (catalog.catalog_id === 'feature_2_catalog') {
+        const feature1 = this.catalogPath.find(p => p.catalogId === 'feature_1_catalog');
+        if (feature1) {
+          const prevBadge = document.createElement('div');
+          prevBadge.className = 'selected-feature-badge';
+          prevBadge.innerHTML = `
+            <div class="feature-check-icon"></div>
+            <span>${feature1.name} Seleccionado</span>
+          `;
+          wrapper.appendChild(prevBadge);
+        }
+      } else if (catalog.catalog_id === 'feature_3_catalog') {
+        // Mostrar las dos características previas
+        const feature1 = this.catalogPath.find(p => p.catalogId === 'feature_1_catalog');
+        const feature2 = this.catalogPath.find(p => p.catalogId === 'feature_2_catalog');
+        
+        if (feature1) {
+          const prevBadge1 = document.createElement('div');
+          prevBadge1.className = 'selected-feature-badge';
+          prevBadge1.innerHTML = `
+            <div class="feature-check-icon"></div>
+            <span>${feature1.name} Seleccionado</span>
+          `;
+          wrapper.appendChild(prevBadge1);
+        }
+        
+        if (feature2) {
+          const prevBadge2 = document.createElement('div');
+          prevBadge2.className = 'selected-feature-badge';
+          prevBadge2.innerHTML = `
+            <div class="feature-check-icon"></div>
+            <span>${feature2.name} Seleccionado</span>
+          `;
+          wrapper.appendChild(prevBadge2);
+        }
       }
     }
+    
+    // Grid de opciones (2 columnas)
+    const optionsGrid = document.createElement('div');
+    optionsGrid.className = 'feature-options-grid';
+    
+    catalog.data.forEach((item, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'feature-option-btn';
+      btn.innerHTML = `
+        <span>${item.name}</span>
+      `;
+      btn.onclick = (e) => {
+        e.preventDefault();
+        console.log('👉 Click en opción:', item.name);
+        this.selectCatalogItem(item, catalog.catalog_id);
+      };
+      optionsGrid.appendChild(btn);
+    });
+    
+    wrapper.appendChild(optionsGrid);
+    
+    // Botón "Finalizar Cotización" si es la última característica
+    if (catalog.catalog_id === 'feature_3_catalog' || !catalog.data.some(item => item.child)) {
+      const finalizeBtn = document.createElement('button');
+      finalizeBtn.className = 'finalize-quote-btn';
+      finalizeBtn.textContent = 'Finalizar Cotización';
+      finalizeBtn.onclick = (e) => {
+        e.preventDefault();
+        this.calculateAndShowResults();
+      };
+      wrapper.appendChild(finalizeBtn);
+    }
+    
+    container.appendChild(wrapper);
+  }
+
+  renderMetalCalculator(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    // Activar modo de una sola columna en el layout padre
+    const layoutContainer = container.closest('.catalog-layout-v2');
+    if (layoutContainer) {
+      layoutContainer.classList.add('single-column-mode');
+    }
+    
+    // Ocultar panel de detalles explícitamente
+    const detailsPanel = document.querySelector('.catalog-details-panel');
+    if (detailsPanel) {
+      detailsPanel.style.setProperty('display', 'none', 'important');
+    }
+    
+    const isGold = catalog.catalog_id === 'metal_gold_catalog';
+    const metalType = isGold ? 'Oro' : 'Plata';
+    
+    // Crear estructura principal
+    const wrapper = document.createElement('div');
+    wrapper.className = 'metal-calculator-wrapper';
+    
+    // Header con botón de volver
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    // Icono y Título central
+    const hero = document.createElement('div');
+    hero.className = 'metal-hero';
+    hero.innerHTML = `
+      <div class="metal-icon-circle">
+        <img src="${isGold ? 'https://cdn.shopify.com/s/files/1/0556/2630/1521/files/gold-ring-icon.png?v=1710000000' : 'https://cdn.shopify.com/s/files/1/0556/2630/1521/files/silver-ring-icon.png?v=1710000000'}" alt="${metalType}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+        <svg style="display:none; width: 48px; height: 48px;" viewBox="0 0 24 24" fill="none" stroke="${isGold ? '#fbbf24' : '#9ca3af'}" stroke-width="1.5">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 7v10M8 12h8"/>
+        </svg>
+      </div>
+      <h2 class="metal-title">${metalType}</h2>
+    `;
+    wrapper.appendChild(hero);
+    
+    // Grid de 2 columnas para inputs
+    const inputGrid = document.createElement('div');
+    inputGrid.className = 'metal-input-grid';
+    
+    // Columna 1: Kilataje
+    const karatCol = document.createElement('div');
+    karatCol.className = 'metal-input-col';
+    karatCol.innerHTML = `
+      <label class="metal-label">SELECCIONA KILATAJE <span class="tooltip-icon" title="El kilataje determina la pureza del metal">?</span></label>
+      <select id="metal-karat-select-${this.blockId}" class="metal-select">
+        <option value="">Selecciona</option>
+      </select>
+    `;
+    inputGrid.appendChild(karatCol);
+    
+    // Columna 2: Peso
+    const weightCol = document.createElement('div');
+    weightCol.className = 'metal-input-col';
+    weightCol.innerHTML = `
+      <label class="metal-label">INDICA EL PESO EN GRAMOS</label>
+      <input type="number" id="metal-weight-input-${this.blockId}" class="metal-input" placeholder="0.0" step="0.1" min="0">
+    `;
+    inputGrid.appendChild(weightCol);
+    
+    wrapper.appendChild(inputGrid);
+    
+    // Botones de acción
+    const actionRow = document.createElement('div');
+    actionRow.className = 'metal-action-row';
+    
+    const simulateBtn = document.createElement('button');
+    simulateBtn.className = 'metal-btn-secondary';
+    simulateBtn.textContent = 'SIMULAR OTRO ARTÍCULO';
+    simulateBtn.onclick = () => this.resetCatalog();
+    
+    const calculateBtn = document.createElement('button');
+    calculateBtn.className = 'metal-btn-primary';
+    calculateBtn.textContent = '¡QUIERO MI PRÉSTAMO!';
+    calculateBtn.disabled = true; // Deshabilitado por defecto
+    
+    actionRow.appendChild(simulateBtn);
+    actionRow.appendChild(calculateBtn);
+    wrapper.appendChild(actionRow);
+    
+    container.appendChild(wrapper);
+    
+    // Llenar select de kilataje
+    const karatSelect = document.getElementById(`metal-karat-select-${this.blockId}`);
+    catalog.data.forEach(item => {
+      const option = document.createElement('option');
+      option.value = JSON.stringify(item);
+      option.textContent = item.name;
+      karatSelect.appendChild(option);
+    });
+    
+    // Lógica de validación y cálculo
+    const weightInput = document.getElementById(`metal-weight-input-${this.blockId}`);
+    
+    const validateForm = () => {
+      const karatSelected = karatSelect.value !== '';
+      const weightValue = parseFloat(weightInput.value);
+      const weightValid = !isNaN(weightValue) && weightValue > 0;
+      
+      calculateBtn.disabled = !(karatSelected && weightValid);
+      
+      if (calculateBtn.disabled) {
+        calculateBtn.classList.add('disabled');
+      } else {
+        calculateBtn.classList.remove('disabled');
+      }
+    };
+    
+    karatSelect.addEventListener('change', validateForm);
+    weightInput.addEventListener('input', validateForm);
+    
+    calculateBtn.onclick = async () => {
+      if (calculateBtn.disabled) return;
+      
+      const item = JSON.parse(karatSelect.value);
+      const weight = parseFloat(weightInput.value);
+      
+      // Añadir al path para referencia
+      this.catalogPath.push({
+        ...item,
+        catalogId: catalog.catalog_id,
+        userWeight: weight
+      });
+      
+      // Mostrar loader
+      const loadingDiv = document.getElementById(`loading-${this.blockId}`);
+      if (loadingDiv) loadingDiv.style.setProperty('display', 'flex', 'important');
+      
+      // Llamar a la API de precio directamente
+      // El payload para metales necesita params: { karat: XX, weight: YY }
+      // Necesitamos adaptar `calculateAndShowResults` o llamarlo con parámetros especiales
+      
+      // En este caso, como tenemos datos específicos (peso), vamos a guardar esto en una variable temporal
+      // o modificar `calculateAndShowResults` para que lea el peso del path.
+      
+      this.calculateAndShowResults();
+    };
   }
 
   attachDropdownListener(dropdown, catalogData, catalogId) {
@@ -646,6 +1299,24 @@ class CotizadorApp {
 
   selectCatalogItem(item, catalogId) {
     console.log(`🎯 selectCatalogItem llamado con:`, item.name, catalogId);
+    
+    // Limpiar contenido actual inmediatamente para mostrar solo el loader
+    const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+    if (dropdownsContainer) {
+      // Limpiar completamente el contenedor
+      dropdownsContainer.innerHTML = '';
+      dropdownsContainer.style.setProperty('display', 'flex', 'important');
+      dropdownsContainer.style.setProperty('visibility', 'visible', 'important');
+      
+      // Mostrar loader explícitamente
+      const loadingDiv = document.getElementById(`loading-${this.blockId}`);
+      if (loadingDiv) {
+        loadingDiv.style.setProperty('display', 'flex', 'important');
+        loadingDiv.style.setProperty('visibility', 'visible', 'important');
+        loadingDiv.style.setProperty('opacity', '1', 'important');
+      }
+    }
+
     this.catalogPath.push({ ...item, catalogId });
     console.log(`📦 CatalogPath ahora tiene ${this.catalogPath.length} items:`, this.catalogPath.map(i => i.name));
     
@@ -672,6 +1343,12 @@ class CotizadorApp {
     
     if (nextCatalog) {
       this.loadCatalog(nextCatalog.catalogId, nextCatalog.params);
+      
+      // Hacer scroll al inicio del cotizador al avanzar de paso
+      const cotizadorBlock = document.getElementById(`cotizador-${this.blockId}`);
+      if (cotizadorBlock) {
+        cotizadorBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } else {
       this.calculateAndShowResults();
     }
@@ -1142,8 +1819,14 @@ class CotizadorApp {
     if (catalogId === 'metal_gold_catalog' || catalogId === 'metal_silver_catalog') {
       category_id = 1;
       pledge_id = 4;
-      params.karat = this.catalogPath[this.catalogPath.length - 1].karat_id || 14;
-      params.weight = 1.0;
+      
+      // Buscar item seleccionado en el path (kilataje)
+      const karatItem = this.catalogPath.find(p => p.catalogId === 'metal_gold_catalog' || p.catalogId === 'metal_silver_catalog');
+      
+      params.karat = karatItem?.karat_id || 14;
+      // Usar el peso ingresado por el usuario, guardado en el item del path
+      params.weight = karatItem?.userWeight || 1.0;
+      
     } else if (catalogId.includes('diamond')) {
       category_id = 1;
       pledge_id = 11;
@@ -1193,6 +1876,12 @@ class CotizadorApp {
   displayResults() {
     document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
     document.getElementById(`main-panels-${this.blockId}`).style.display = 'block';
+    
+    // Hacer scroll al inicio del cotizador
+    const cotizadorBlock = document.getElementById(`cotizador-${this.blockId}`);
+    if (cotizadorBlock) {
+      cotizadorBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     
     // Actualizar progress stepper para mostrar todos los pasos completados
     const progressStepper = document.getElementById(`progress-stepper-results-${this.blockId}`);
@@ -1487,8 +2176,8 @@ class CotizadorApp {
     if (loanAmountEl) {
       // Formatear con comas y mostrar sin símbolo $ (el símbolo está en el HTML)
       const formatted = parseFloat(loanAmount).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
       });
       loanAmountEl.textContent = formatted;
     }
@@ -1553,10 +2242,10 @@ class CotizadorApp {
     const lastPaymentValueEl = document.getElementById(`last-payment-value-${this.blockId}`);
     
     if (paymentValueEl) {
-      paymentValueEl.textContent = parseFloat(paymentValue).toFixed(2);
+      paymentValueEl.textContent = parseFloat(paymentValue).toFixed(0);
     }
     if (lastPaymentValueEl) {
-      lastPaymentValueEl.textContent = parseFloat(lastPaymentValue).toFixed(2);
+      lastPaymentValueEl.textContent = parseFloat(lastPaymentValue).toFixed(0);
     }
     
     // Actualizar etiquetas según el plan y frecuencia
