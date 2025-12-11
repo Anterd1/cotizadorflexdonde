@@ -324,6 +324,50 @@
   transform: scaleY(1.2);
 }
 
+/* Mobile Stepper - Solo visible en mobile, adicional al stepper de desktop */
+.mobile-stepper {
+  display: none !important; /* Oculto por defecto (desktop) */
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 4px !important;
+  height: 6px !important;
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  z-index: 1 !important;
+  position: relative !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.mobile-stepper-step {
+  flex: 1 !important;
+  height: 6px !important;
+  background: #e5e7eb !important; /* Gris claro para pasos inactivos */
+  border-radius: 9999px !important;
+  transition: background 0.3s ease !important;
+  min-width: 4px !important;
+  max-width: 100% !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.mobile-stepper-step.active {
+  background: #005745 !important; /* Verde/teal oscuro para pasos activos */
+}
+
+/* Mostrar stepper móvil solo en mobile */
+@media (max-width: 768px) {
+  .mobile-stepper {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+}
+
 /* Item Card */
 .item-card {
   background: #ffffff;
@@ -2355,6 +2399,8 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 @media (min-width: 768px) {
@@ -2559,78 +2605,92 @@
   box-shadow: 0 0 0 1px #059669;
 }
 
-/* Slider mejorado */
+/* Slider mejorado - Optimizado para uso horizontal */
 .loan-slider-section {
   margin: 0;
+  width: 100%;
 }
 
 .loan-slider-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
 }
 
 .loan-section-label-small {
   font-weight: 700;
   color: #334155;
-  font-size: 14px;
+  font-size: 16px;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .loan-slider-display {
   text-align: right;
+  flex-shrink: 0;
 }
 
 .loan-slider-num {
-  font-size: 30px;
-  font-weight: 700;
+  font-size: 48px;
+  font-weight: 800;
   color: #059669;
+  line-height: 1;
 }
 
 .loan-slider-unit {
-  font-size: 14px;
-  color: #94a3b8;
-  font-weight: 500;
-  margin-left: 4px;
+  font-size: 16px;
+  color: #64748b;
+  font-weight: 600;
+  margin-left: 6px;
 }
 
 .loan-range-input {
   width: 100%;
-  height: 8px;
-  background: #f1f5f9;
-  border-radius: 8px;
+  height: 10px;
+  background: linear-gradient(to right, #ecfdf5 0%, #d1fae5 100%);
+  border-radius: 10px;
   outline: none;
   -webkit-appearance: none;
   appearance: none;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .loan-range-input::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   background: #059669;
   border-radius: 50%;
   cursor: pointer;
-  transition: background 0.15s ease-in-out;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.4);
+  border: 3px solid white;
 }
 
 .loan-range-input::-webkit-slider-thumb:hover {
   background: #047857;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.5);
 }
 
 .loan-range-input::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   background: #059669;
   border-radius: 50%;
   cursor: pointer;
-  border: none;
-  transition: background 0.15s ease-in-out;
+  border: 3px solid white;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.4);
 }
 
 .loan-range-input::-moz-range-thumb:hover {
   background: #047857;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.5);
 }
 
 /* Grid de Resultados mejorado */
@@ -2640,16 +2700,21 @@
   gap: 24px;
   margin-top: 16px;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .loan-result-card {
   position: relative;
-  padding: 20px;
+  padding: 24px;
   border-radius: 16px;
   background: white;
   border: 1px solid #e2e8f0;
   box-shadow: 0 4px 20px -10px rgba(0, 0, 0, 0.05);
   transition: border-color 0.3s;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .loan-result-card:hover {
@@ -2682,8 +2747,9 @@
   background: #fbbf24;
 }
 
-.loan-result-label {
-  font-size: 12px;
+/* Estilos de etiquetas de resultados de préstamo */
+.loan-result-card .loan-result-label {
+  font-size: 14px;
   font-weight: 700;
   color: #94a3b8;
   text-transform: uppercase;
@@ -2691,33 +2757,49 @@
   margin-bottom: 8px;
 }
 
-.loan-result-label.amber-text {
+.loan-result-card .loan-result-label.amber-text {
   color: #d97706;
 }
 
-.loan-result-amount-row {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
+/* Contenedor de monto con símbolo y valor */
+.loan-result-card .loan-result-amount-row {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+  line-height: 1;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-.loan-currency {
-  font-size: 18px;
+/* Símbolo de moneda ($) */
+.loan-result-card .loan-result-amount-row .loan-currency {
+  font-size: 22px;
   font-weight: 500;
   color: #94a3b8;
+  line-height: 1;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0 !important;
 }
 
-.loan-currency.amber-text {
+.loan-result-card .loan-result-amount-row .loan-currency.amber-text {
   color: #d97706;
 }
 
-.loan-result-value {
-  font-size: 30px;
+/* Valor numérico del monto */
+.loan-result-card .loan-result-amount-row .loan-result-value {
+  font-size: 42px;
   font-weight: 800;
   color: #1e293b;
+  line-height: 1;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0 !important;
 }
 
-.loan-result-value.amber-text {
+.loan-result-card .loan-result-amount-row .loan-result-value.amber-text {
   color: #b45309;
 }
 
@@ -2869,6 +2951,14 @@
   .loan-results-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+  }
+  
+  .loan-result-card {
+    width: 100%;
+    max-width: 100%;
   }
   
   /* Ajustar botones de frecuencia para mobile */
@@ -2884,14 +2974,30 @@
   }
 
   /* 4. Enhanced Touch Controls */
+  .loan-slider-num {
+    font-size: 38px;
+  }
+  
+  .loan-section-label-small {
+    font-size: 14px;
+  }
+  
+  .loan-slider-unit {
+    font-size: 14px;
+  }
+  
+  .loan-range-input {
+    height: 8px;
+  }
+  
   .loan-range-input::-webkit-slider-thumb {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
   }
   
   .loan-range-input::-moz-range-thumb {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
   }
   
   .frequency-toggle-container {
@@ -2904,17 +3010,33 @@
     font-size: 13px;
   }
 
-  /* 6. Typography & Readability */
-  .loan-result-label {
-    font-size: 11px; /* Slightly smaller labels allowed for uppercase */
+  /* 6. Typography & Readability - Mobile optimizations */
+  .loan-result-card .loan-result-label {
+    font-size: 13px;
   }
   
-  .loan-result-value {
-    font-size: 24px;
+  /* Valores numéricos más pequeños en mobile */
+  .loan-result-card .loan-result-amount-row .loan-result-value {
+    font-size: 36px;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-width: 0 !important;
   }
   
-  .loan-currency {
-    font-size: 16px;
+  /* Símbolo de moneda más pequeño en mobile */
+  .loan-result-card .loan-result-amount-row .loan-currency {
+    font-size: 20px;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+  }
+  
+  /* Contenedor en mobile */
+  .loan-result-card .loan-result-amount-row {
+    margin: 0 !important;
+    padding: 0 !important;
   }
   
   .loan-plan-desc-top {

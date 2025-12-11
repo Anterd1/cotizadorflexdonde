@@ -16,6 +16,9 @@ class CotizadorApp {
     this.API_URL = 'https://s5mhb5u787.execute-api.us-east-1.amazonaws.com/qa';
     this.API_KEY = 'unQSy6sApK5bPnIZFiqMZ2NDGgTTzIb6PRpkZ7Y1';
     
+    // Debug Mode - Cambiar a true para activar logs
+    this.DEBUG_MODE = false;
+    
     // State
     this.currentCategory = null;
     this.catalogPath = [];
@@ -30,6 +33,11 @@ class CotizadorApp {
     this.selectedAppointmentTime = null;
     
     this.init();
+  }
+
+  // Método helper para logs de debug
+  log(...args) {
+    if (this.DEBUG_MODE) console.log(...args);
   }
 
   init() {
@@ -192,11 +200,7 @@ class CotizadorApp {
     if (mainPanels) mainPanels.style.setProperty('display', 'none', 'important');
     if (categoriesDiv) categoriesDiv.style.setProperty('display', 'none', 'important');
     
-    // Hacer scroll al inicio del cotizador
-    const cotizadorBlock = document.getElementById(`cotizador-${this.blockId}`);
-    if (cotizadorBlock) {
-      cotizadorBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    // No hacer scroll automático - mantener posición actual
     
     // Actualizar panel de detalles con la categoría seleccionada
     this.updateDetailsPanel();
@@ -213,6 +217,8 @@ class CotizadorApp {
       'smartwatch': 'subcategory_miscellaneous',
       'consoles': 'subcategory_miscellaneous',
       'others': 'subcategory_miscellaneous',
+      'auto': 'subcategory_vehicles',
+      'moto': 'subcategory_vehicles',
       'vehicles': 'subcategory_vehicles',
       'auto_financing': 'subcategory_vehicles'
     };
@@ -224,6 +230,9 @@ class CotizadorApp {
       alert(`Categoría "${category}" no está configurada. Por favor contacta al administrador.`);
       return;
     }
+    
+    // Guardar la categoría seleccionada para filtrar después (vehículos)
+    this.selectedVehicleCategory = category;
     
     this.loadCatalog(catalogId, {});
   }
@@ -323,9 +332,35 @@ class CotizadorApp {
                                catalogId === 'version_vehicles';
       const endpoint = isVehicleCatalog ? '/simulator/catalog-ext' : '/simulator/catalog';
       
+      // Construir request body según el tipo de catálogo
+      let dataParams;
+      
+      if (isVehicleCatalog) {
+        if (catalogId === 'subcategory_vehicles') {
+          // Para el primer catálogo de vehículos, solo user_id y prospect_flag
+          dataParams = {
+            user_id: params.user_id || '',
+            prospect_flag: params.prospect_flag ?? false
+          };
+        } else {
+          // Para los demás catálogos de vehículos, incluir todos los parámetros
+          dataParams = {
+            user_id: params.user_id || '',
+            prospect_flag: params.prospect_flag ?? false,
+            vehicle: params.vehicle || params.vehicle_type || '',
+            brand: params.brand || '',
+            model: params.model || '',
+            year: params.year || '',
+            vehicle_type: params.vehicle_type || ''
+          };
+        }
+      } else {
+        dataParams = { user_id: '', prospect_flag: false, ...params };
+      }
+      
       const requestBody = {
         catalog_id: catalogId,
-        data: { user_id: '', prospect_flag: false, ...params }
+        data: dataParams
       };
       
       const response = await fetch(`${this.API_URL}${endpoint}`, {
@@ -357,9 +392,31 @@ class CotizadorApp {
         return;
       }
       
+      // Manejo especial para vehículos: filtrar o auto-seleccionar según la categoría
+      if (catalogId === 'subcategory_vehicles' && result.catalog && result.catalog.data) {
+        if (this.selectedVehicleCategory === 'moto') {
+          // Auto-seleccionar "Motos" y continuar directamente
+          const motoItem = result.catalog.data.find(item => 
+            item.name.toLowerCase().includes('moto')
+          );
+          
+          if (motoItem) {
+            this.log(`🛵 Auto-seleccionando Moto: ${motoItem.name}`);
+            loadingDiv.style.setProperty('display', 'none', 'important');
+            this.selectCatalogItem(motoItem, result.catalog.catalog_id);
+            return;
+          }
+        } else if (this.selectedVehicleCategory === 'auto') {
+          // Filtrar solo opciones que contengan "Auto" (excluyendo "Motos")
+          result.catalog.data = result.catalog.data.filter(item => 
+            !item.name.toLowerCase().includes('moto')
+          );
+        }
+      }
+      
       // Auto-selección para saltar redundancia (ej: Consolas -> Consolas -> Marca)
       // Solo aplicar si estamos en el primer nivel (catalogPath vacío)
-      console.log(`🔍 Revisando auto-selección. Categoría: ${this.currentCategory}, Path: ${this.catalogPath.length}`);
+      this.log(`🔍 Revisando auto-selección. Categoría: ${this.currentCategory}, Path: ${this.catalogPath.length}`);
       
       if (this.catalogPath.length === 0 && this.currentCategory) {
         const categoryMap = {
@@ -374,14 +431,14 @@ class CotizadorApp {
         const targetKeywords = categoryMap[this.currentCategory];
         
         if (targetKeywords && targetKeywords.length > 0 && result.catalog && result.catalog.data) {
-          console.log(`🔍 Buscando keywords: ${targetKeywords.join(', ')} en datos:`, result.catalog.data.map(i => i.name));
+          this.log(`🔍 Buscando keywords: ${targetKeywords.join(', ')} en datos:`, result.catalog.data.map(i => i.name));
           
           const autoItem = result.catalog.data.find(item => 
             targetKeywords.some(keyword => item.name.toLowerCase().includes(keyword.toLowerCase()))
           );
 
           if (autoItem) {
-            console.log(`🔄 Auto-seleccionando categoría redundante: ${autoItem.name}`);
+            this.log(`🔄 Auto-seleccionando categoría redundante: ${autoItem.name}`);
             
             // Ocultar loader PRIMERO para evitar parpadeos
             loadingDiv.style.setProperty('display', 'none', 'important');
@@ -390,7 +447,7 @@ class CotizadorApp {
             this.selectCatalogItem(autoItem, result.catalog.catalog_id);
             return; 
           } else {
-            console.log(`⚠️ No se encontró coincidencia para auto-selección.`);
+            this.log(`⚠️ No se encontró coincidencia para auto-selección.`);
           }
         }
       }
@@ -511,6 +568,9 @@ class CotizadorApp {
       const isModelCatalog = ['model_catalog', 'model_vehicles'].includes(catalog.catalog_id);
       const isFeatureCatalog = ['feature_1_catalog', 'feature_2_catalog', 'feature_3_catalog'].includes(catalog.catalog_id);
       const isMetalCatalog = ['metal_gold_catalog', 'metal_silver_catalog'].includes(catalog.catalog_id);
+      const isVehicleTypeCatalog = catalog.catalog_id === 'subcategory_vehicles';
+      const isYearCatalog = catalog.catalog_id === 'year_vehicles';
+      const isSubcategoryCatalog = catalog.catalog_id === 'subcategory_miscellaneous';
       
       if (isBrandCatalog) {
         this.renderBrandSelection(catalog, dropdownsContainer);
@@ -520,6 +580,12 @@ class CotizadorApp {
         this.renderFeatureSelection(catalog, dropdownsContainer);
       } else if (isMetalCatalog) {
         this.renderMetalCalculator(catalog, dropdownsContainer);
+      } else if (isVehicleTypeCatalog) {
+        this.renderVehicleTypeSelection(catalog, dropdownsContainer);
+      } else if (isYearCatalog) {
+        this.renderYearSelection(catalog, dropdownsContainer);
+      } else if (isSubcategoryCatalog) {
+        this.renderSubcategorySelection(catalog, dropdownsContainer);
       } else {
         this.renderStandardDropdown(catalog, dropdownsContainer);
       }
@@ -607,6 +673,44 @@ class CotizadorApp {
     return header;
   }
 
+  createMobileStepper() {
+    const stepper = document.createElement('div');
+    stepper.className = 'mobile-stepper';
+    stepper.dataset.catalogStepper = 'true';
+    
+    const totalSteps = 7;
+    const currentStep = this.catalogPath.length;
+    
+    for (let i = 0; i < totalSteps; i++) {
+      const step = document.createElement('div');
+      step.className = 'mobile-stepper-step';
+      if (i < currentStep) {
+        step.classList.add('active');
+      }
+      stepper.appendChild(step);
+    }
+    
+    return stepper;
+  }
+
+  updateMobileStepper() {
+    const steppers = document.querySelectorAll('.mobile-stepper[data-catalog-stepper="true"]');
+    if (steppers.length === 0) return;
+    
+    const currentStep = this.catalogPath.length;
+    
+    steppers.forEach(stepper => {
+      const steps = stepper.querySelectorAll('.mobile-stepper-step');
+      steps.forEach((step, index) => {
+        if (index < currentStep) {
+          step.classList.add('active');
+        } else {
+          step.classList.remove('active');
+        }
+      });
+    });
+  }
+
   goBackOneStep() {
     if (this.catalogPath.length === 0) {
       // Si no hay pasos, volver a categorías
@@ -675,6 +779,95 @@ class CotizadorApp {
       this.attachDropdownListener(dropdown, catalog.data, catalog.catalog_id);
   }
 
+  renderSubcategorySelection(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    // Crear estructura principal
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper';
+    
+    // Header con botón de volver
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    // Stepper móvil
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
+    
+    // Título
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = '¿Qué tipo de artículo es?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.textContent = 'Selecciona la categoría de tu electrónico.';
+    wrapper.appendChild(subtitle);
+    
+    // Barra de búsqueda
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'brand-search-container';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'brand-search-input';
+    searchInput.placeholder = 'Buscar categoría...';
+    searchContainer.appendChild(searchInput);
+    wrapper.appendChild(searchContainer);
+    
+    // Lista de subcategorías
+    const subcategoriesList = document.createElement('div');
+    subcategoriesList.className = 'other-brands-list';
+    
+    const renderList = (items) => {
+      subcategoriesList.innerHTML = '';
+      if (items.length === 0) {
+        subcategoriesList.innerHTML = '<div class="no-results">No se encontraron opciones</div>';
+        return;
+      }
+      
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'brand-list-item model-list-item';
+        row.innerHTML = `
+          <div class="model-info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+              <line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+            <span>${item.name}</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        `;
+        row.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.selectCatalogItem(item, catalog.catalog_id);
+        });
+        subcategoriesList.appendChild(row);
+      });
+    };
+    
+    // Renderizar lista inicial
+    renderList(catalog.data);
+    
+    wrapper.appendChild(subcategoriesList);
+    container.appendChild(wrapper);
+    
+    // Lógica de búsqueda
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      
+      if (term === '') {
+        renderList(catalog.data);
+      } else {
+        const filtered = catalog.data.filter(item => item.name.toLowerCase().includes(term));
+        renderList(filtered);
+      }
+    });
+  }
+
   renderBrandSelection(catalog, container) {
     // Limpiar contenedor
     container.innerHTML = '';
@@ -683,14 +876,18 @@ class CotizadorApp {
     const wrapper = document.createElement('div');
     wrapper.className = 'brand-selection-wrapper';
     
-    // Header con botón de volver y stepper
+    // Header con botón de volver
     const header = this.createTradeInHeader();
     wrapper.appendChild(header);
+    
+    // Stepper móvil
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
     
     // Título
     const title = document.createElement('h3');
     title.className = 'brand-selection-title';
-    title.textContent = '¿De qué marca es?';
+    title.textContent = '¿Qué marca es?';
     wrapper.appendChild(title);
     
     const subtitle = document.createElement('p');
@@ -748,7 +945,7 @@ class CotizadorApp {
         `;
         btn.onclick = (e) => {
           e.preventDefault();
-          console.log('👉 Click en marca popular:', item.name);
+          this.log('👉 Click en marca popular:', item.name);
           this.selectCatalogItem(item, catalog.catalog_id);
         };
         popularGrid.appendChild(btn);
@@ -777,7 +974,7 @@ class CotizadorApp {
         `;
         row.onclick = (e) => {
           e.preventDefault();
-          console.log('👉 Click en otra marca:', item.name);
+          this.log('👉 Click en otra marca:', item.name);
           this.selectCatalogItem(item, catalog.catalog_id);
         };
         othersList.appendChild(row);
@@ -822,9 +1019,13 @@ class CotizadorApp {
     const wrapper = document.createElement('div');
     wrapper.className = 'brand-selection-wrapper'; // Reutilizamos los mismos estilos
     
-    // Header con botón de volver y stepper
+    // Header con botón de volver
     const header = this.createTradeInHeader();
     wrapper.appendChild(header);
+    
+    // Stepper móvil
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
     
     // Título
     const title = document.createElement('h3');
@@ -873,16 +1074,40 @@ class CotizadorApp {
         `;
         row.onclick = (e) => {
           e.preventDefault();
-          console.log('👉 Click en modelo:', item.name);
+          this.log('👉 Click en modelo:', item.name);
           this.selectCatalogItem(item, catalog.catalog_id);
         };
         modelsList.appendChild(row);
       });
     };
     
-    // Renderizar lista inicial
-    const allItems = catalog.data.map((item, index) => ({ item, index }));
-    renderList(catalog.data);
+    // Función para ordenar modelos del más nuevo al más viejo
+    const sortModelsByYear = (items) => {
+      return items.slice().sort((a, b) => {
+        // Extraer años del nombre (busca números de 4 dígitos que parezcan años)
+        const yearRegex = /\((\d{4})\)|\b(20\d{2})\b/g;
+        const yearsA = a.name.match(yearRegex);
+        const yearsB = b.name.match(yearRegex);
+        
+        // Si ambos tienen año, ordenar por año descendente
+        if (yearsA && yearsB) {
+          const yearA = parseInt(yearsA[yearsA.length - 1].replace(/[()]/g, ''));
+          const yearB = parseInt(yearsB[yearsB.length - 1].replace(/[()]/g, ''));
+          return yearB - yearA; // Más nuevo primero
+        }
+        
+        // Si solo uno tiene año, ese va primero
+        if (yearsA) return -1;
+        if (yearsB) return 1;
+        
+        // Si ninguno tiene año, mantener orden original
+        return 0;
+      });
+    };
+    
+    // Renderizar lista inicial (ordenada del más nuevo al más viejo)
+    const sortedData = sortModelsByYear(catalog.data);
+    renderList(sortedData);
     
     wrapper.appendChild(modelsList);
     container.appendChild(wrapper);
@@ -892,9 +1117,9 @@ class CotizadorApp {
       const term = e.target.value.toLowerCase();
       
       if (term === '') {
-        renderList(catalog.data);
+        renderList(sortedData);
       } else {
-        const filtered = catalog.data.filter(item => item.name.toLowerCase().includes(term));
+        const filtered = sortedData.filter(item => item.name.toLowerCase().includes(term));
         renderList(filtered);
       }
     });
@@ -935,9 +1160,13 @@ class CotizadorApp {
     const wrapper = document.createElement('div');
     wrapper.className = 'feature-selection-wrapper';
     
-    // Header con botón de volver y stepper
+    // Header con botón de volver
     const header = this.createTradeInHeader();
     wrapper.appendChild(header);
+    
+    // Stepper móvil
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
     
     // Título
     const title = document.createElement('h3');
@@ -1017,7 +1246,7 @@ class CotizadorApp {
       `;
       btn.onclick = (e) => {
         e.preventDefault();
-        console.log('👉 Click en opción:', item.name);
+        this.log('👉 Click en opción:', item.name);
         this.selectCatalogItem(item, catalog.catalog_id);
       };
       optionsGrid.appendChild(btn);
@@ -1038,6 +1267,157 @@ class CotizadorApp {
     }
     
     container.appendChild(wrapper);
+  }
+
+  renderVehicleTypeSelection(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    // Crear estructura principal
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper';
+    
+    // Header con botón de volver
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    // Stepper móvil
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
+    
+    // Título
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = this.selectedVehicleCategory === 'auto' ? '¿Qué tipo de auto es?' : '¿Qué tipo de moto es?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.textContent = 'Selecciona el tipo de vehículo.';
+    wrapper.appendChild(subtitle);
+    
+    // Grid de opciones (similar a marcas populares)
+    const optionsGrid = document.createElement('div');
+    optionsGrid.className = 'popular-brands-grid';
+    
+    // Colores para los botones
+    const vehicleTypeColors = {
+      'rodando': { bg: '#3b82f6', text: 'white' },
+      'resguardo': { bg: '#10b981', text: 'white' },
+      'moto': { bg: '#f97316', text: 'white' }
+    };
+    
+    catalog.data.forEach((item) => {
+      const itemName = item.name.toLowerCase();
+      let colorConfig = { bg: '#6366f1', text: 'white' };
+      
+      if (itemName.includes('rodando')) {
+        colorConfig = vehicleTypeColors.rodando;
+      } else if (itemName.includes('resguardo')) {
+        colorConfig = vehicleTypeColors.resguardo;
+      } else if (itemName.includes('moto')) {
+        colorConfig = vehicleTypeColors.moto;
+      }
+      
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'brand-card-btn';
+      btn.style.backgroundColor = colorConfig.bg;
+      btn.style.color = colorConfig.text;
+      btn.innerHTML = `
+        <span class="brand-name">${item.name}</span>
+        <div class="brand-card-decoration"></div>
+      `;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.selectCatalogItem(item, catalog.catalog_id);
+      });
+      optionsGrid.appendChild(btn);
+    });
+    
+    wrapper.appendChild(optionsGrid);
+    container.appendChild(wrapper);
+  }
+
+  renderYearSelection(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    const vehicleTypeItem = this.catalogPath.find(p => p.catalogId === 'subcategory_vehicles');
+    const vehicleTypeName = vehicleTypeItem ? vehicleTypeItem.name : 'el vehículo';
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper';
+    
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
+    
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = '¿Qué año es?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.innerHTML = `Tipo: <strong>${vehicleTypeName}</strong>`;
+    wrapper.appendChild(subtitle);
+    
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'brand-search-container';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'brand-search-input';
+    searchInput.placeholder = 'Buscar año...';
+    searchContainer.appendChild(searchInput);
+    wrapper.appendChild(searchContainer);
+    
+    const yearsList = document.createElement('div');
+    yearsList.className = 'other-brands-list';
+    
+    const renderList = (items) => {
+      yearsList.innerHTML = '';
+      if (items.length === 0) {
+        yearsList.innerHTML = '<div class="no-results">No se encontraron años</div>';
+        return;
+      }
+      
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'brand-list-item model-list-item';
+        row.innerHTML = `
+          <div class="model-info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span>${item.name}</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        `;
+        row.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.selectCatalogItem(item, catalog.catalog_id);
+        });
+        yearsList.appendChild(row);
+      });
+    };
+    
+    renderList(catalog.data);
+    wrapper.appendChild(yearsList);
+    container.appendChild(wrapper);
+    
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      const filtered = term === '' ? catalog.data : catalog.data.filter(item => item.name.toLowerCase().includes(term));
+      renderList(filtered);
+    });
   }
 
   renderMetalCalculator(catalog, container) {
@@ -1066,6 +1446,10 @@ class CotizadorApp {
     // Header con botón de volver
     const header = this.createTradeInHeader();
     wrapper.appendChild(header);
+    
+    // Stepper móvil
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
     
     // Icono y Título central
     const hero = document.createElement('div');
@@ -1246,9 +1630,9 @@ class CotizadorApp {
       // Deshabilitar el dropdown temporalmente para evitar múltiples clicks
       newDropdown.disabled = true;
       
-      console.log(`🔘 Dropdown cambiado! Item seleccionado:`, itemData);
-      console.log(`🔘 CatalogId:`, catalogIdRef);
-      console.log(`🔘 Llamando a selectCatalogItem...`);
+      this.log(`🔘 Dropdown cambiado! Item seleccionado:`, itemData);
+      this.log(`🔘 CatalogId:`, catalogIdRef);
+      this.log(`🔘 Llamando a selectCatalogItem...`);
       
       // Llamar a selectCatalogItem que actualizará el panel izquierdo y cargará el siguiente catálogo
       try {
@@ -1262,8 +1646,8 @@ class CotizadorApp {
   getDropdownLabel(catalogId) {
     const labels = {
       'subcategory_miscellaneous': 'Tipo de artículo',
-      'brand_catalog': '¿De que marca es tu articulo?',
-      'model_catalog': '¿De que modelo es tu articulo?',
+      'brand_catalog': '¿Qué marca es?',
+      'model_catalog': '¿Qué modelo es?',
       'feature_1_catalog': 'Característica 1',
       'feature_2_catalog': 'Característica 2',
       'feature_3_catalog': 'Característica 3',
@@ -1274,8 +1658,8 @@ class CotizadorApp {
       'diamond_size_catalog': 'Tamaño',
       'subcategory_vehicles': 'Tipo de vehículo',
       'year_vehicles': 'Año',
-      'brand_vehicles': '¿De que marca es tu articulo?',
-      'model_vehicles': '¿De que modelo es tu articulo?',
+      'brand_vehicles': '¿Qué marca es?',
+      'model_vehicles': '¿Qué modelo es?',
       'version_vehicles': 'Versión'
     };
     
@@ -1298,7 +1682,7 @@ class CotizadorApp {
   }
 
   selectCatalogItem(item, catalogId) {
-    console.log(`🎯 selectCatalogItem llamado con:`, item.name, catalogId);
+    this.log(`🎯 selectCatalogItem llamado con:`, item.name, catalogId);
     
     // Limpiar contenido actual inmediatamente para mostrar solo el loader
     const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
@@ -1318,17 +1702,17 @@ class CotizadorApp {
     }
 
     this.catalogPath.push({ ...item, catalogId });
-    console.log(`📦 CatalogPath ahora tiene ${this.catalogPath.length} items:`, this.catalogPath.map(i => i.name));
+    this.log(`📦 CatalogPath ahora tiene ${this.catalogPath.length} items:`, this.catalogPath.map(i => i.name));
     
     // Actualizar panel de detalles inmediatamente
-    console.log(`🔄 Llamando a updateDetailsPanel...`);
-    console.log(`🔍 Verificando método:`, typeof this.updateDetailsPanel);
-    console.log(`🔍 Contexto this:`, this);
+    this.log(`🔄 Llamando a updateDetailsPanel...`);
+    this.log(`🔍 Verificando método:`, typeof this.updateDetailsPanel);
+    this.log(`🔍 Contexto this:`, this);
     try {
       if (typeof this.updateDetailsPanel === 'function') {
-        console.log(`✅ Método existe, ejecutando...`);
+        this.log(`✅ Método existe, ejecutando...`);
         const result = this.updateDetailsPanel();
-        console.log(`✅ updateDetailsPanel ejecutado, resultado:`, result);
+        this.log(`✅ updateDetailsPanel ejecutado, resultado:`, result);
       } else {
         console.error(`❌ updateDetailsPanel no es una función!`);
       }
@@ -1344,27 +1728,23 @@ class CotizadorApp {
     if (nextCatalog) {
       this.loadCatalog(nextCatalog.catalogId, nextCatalog.params);
       
-      // Hacer scroll al inicio del cotizador al avanzar de paso
-      const cotizadorBlock = document.getElementById(`cotizador-${this.blockId}`);
-      if (cotizadorBlock) {
-        cotizadorBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      // No hacer scroll automático - mantener posición actual
     } else {
       this.calculateAndShowResults();
     }
   }
 
   updateDetailsPanel() {
-    console.log(`🚀🚀🚀 updateDetailsPanel() EJECUTÁNDOSE AHORA!!!`);
-    console.log(`🔍🔍🔍 updateDetailsPanel() INICIANDO...`);
-    console.log(`🔍 Buscando elemento: details-content-${this.blockId}`);
-    console.log(`🔍 BlockId: ${this.blockId}`);
-    console.log(`🔍 CatalogPath:`, this.catalogPath);
+    this.log(`🚀🚀🚀 updateDetailsPanel() EJECUTÁNDOSE AHORA!!!`);
+    this.log(`🔍🔍🔍 updateDetailsPanel() INICIANDO...`);
+    this.log(`🔍 Buscando elemento: details-content-${this.blockId}`);
+    this.log(`🔍 BlockId: ${this.blockId}`);
+    this.log(`🔍 CatalogPath:`, this.catalogPath);
     
     try {
-      console.log(`🔍 Dentro del try, buscando elemento...`);
+      this.log(`🔍 Dentro del try, buscando elemento...`);
       const detailsPanel = document.getElementById(`details-content-${this.blockId}`);
-      console.log(`🔍 Elemento encontrado:`, detailsPanel);
+      this.log(`🔍 Elemento encontrado:`, detailsPanel);
     
     if (!detailsPanel) {
       console.error(`❌ ERROR: No se encontró el panel de detalles: details-content-${this.blockId}`);
@@ -1379,8 +1759,8 @@ class CotizadorApp {
       return;
     }
     
-    console.log(`✅ Panel encontrado!`, detailsPanel);
-    console.log(`📝 Actualizando panel de detalles. CatalogPath length: ${this.catalogPath.length}`);
+    this.log(`✅ Panel encontrado!`, detailsPanel);
+    this.log(`📝 Actualizando panel de detalles. CatalogPath length: ${this.catalogPath.length}`);
     
     // Si no hay selecciones aún, mostrar estado vacío
     if (this.catalogPath.length === 0) {
@@ -1432,7 +1812,7 @@ class CotizadorApp {
             <span class="detail-value">${item.name}</span>
           </div>
         `;
-        console.log(`✅ Agregando detalle: ${label} - ${item.name}`);
+        this.log(`✅ Agregando detalle: ${label} - ${item.name}`);
       } else {
         console.warn(`⚠️ Item sin label o name:`, item);
       }
@@ -1440,9 +1820,9 @@ class CotizadorApp {
     
     html += '</div>';
     detailsPanel.innerHTML = html;
-    console.log(`✅ Panel de detalles actualizado con ${this.catalogPath.length} items`);
+    this.log(`✅ Panel de detalles actualizado con ${this.catalogPath.length} items`);
     
-    // Actualizar progress stepper
+    // Actualizar progress stepper (desktop)
     const progressStepper = document.getElementById(`progress-stepper-${this.blockId}`);
     if (progressStepper) {
       const steps = progressStepper.querySelectorAll('.progress-step');
@@ -1454,6 +1834,9 @@ class CotizadorApp {
         }
       });
     }
+    
+    // Actualizar mobile stepper
+    this.updateMobileStepper();
     
     // Hacer los items clickeables para volver a ese paso
     const detailItems = detailsPanel.querySelectorAll('.detail-item');
@@ -1473,6 +1856,30 @@ class CotizadorApp {
   }
 
   getNextCatalog(currentCatalogId, currentItem) {
+    // Helper function para extraer vehicle_type de un item
+    const extractVehicleType = (item) => {
+      if (!item) return '';
+      
+      if (item.child_ids && Array.isArray(item.child_ids)) {
+        const vehicleTypeChild = item.child_ids.find(c => c.name === 'vehicle_type');
+        if (vehicleTypeChild) {
+          return vehicleTypeChild.id || vehicleTypeChild.value || '';
+        }
+      }
+      
+      // Fallback: buscar en el item directamente
+      if (item.vehicle_type) return item.vehicle_type;
+      
+      // Fallback adicional: basado en el nombre
+      if (item.name) {
+        const itemName = item.name.toLowerCase();
+        if (itemName.includes('rodando')) return '2';
+        if (itemName.includes('resguardo')) return '1';
+      }
+      
+      return '';
+    };
+    
     // Flujo para electrónicos (subcategory_miscellaneous)
     if (currentCatalogId === 'subcategory_miscellaneous') {
       // El siguiente es brand_catalog, necesita id_pledge_lakin
@@ -1572,25 +1979,54 @@ class CotizadorApp {
     }
     
     // Flujo para vehículos
+    // Flujo para vehículos
     if (currentCatalogId === 'subcategory_vehicles') {
+      // Extraer vehicle_type del item seleccionado
+      let vehicleType = extractVehicleType(currentItem);
+      
+      this.log('🚗 Vehicle Type extraído:', vehicleType, 'del item:', currentItem);
+      
+      if (!vehicleType) {
+        console.error('❌ No se pudo extraer vehicle_type del item:', currentItem);
+        // Fallback basado en el nombre
+        if (currentItem.name && currentItem.name.toLowerCase().includes('rodando')) {
+          vehicleType = '2';
+        } else if (currentItem.name && currentItem.name.toLowerCase().includes('resguardo')) {
+          vehicleType = '1';
+        } else {
+          vehicleType = '1';
+        }
+        this.log('⚠️ Usando vehicle_type por defecto:', vehicleType);
+      }
+      
       return {
         catalogId: 'year_vehicles',
-        params: {}
+        params: { vehicle_type: vehicleType }
       };
     }
     
     if (currentCatalogId === 'year_vehicles') {
+      const vehicleItem = this.catalogPath.find(p => p.catalogId === 'subcategory_vehicles');
+      const vehicleType = extractVehicleType(vehicleItem);
+      
       return {
         catalogId: 'brand_vehicles',
-        params: { year: currentItem.id || currentItem.name }
+        params: { 
+          vehicle_type: vehicleType,
+          year: currentItem.id || currentItem.name 
+        }
       };
     }
     
     if (currentCatalogId === 'brand_vehicles') {
+      const vehicleItem = this.catalogPath.find(p => p.catalogId === 'subcategory_vehicles');
       const yearItem = this.catalogPath.find(p => p.catalogId === 'year_vehicles');
+      const vehicleType = extractVehicleType(vehicleItem);
+      
       return {
         catalogId: 'model_vehicles',
         params: { 
+          vehicle_type: vehicleType,
           year: yearItem?.id || yearItem?.name,
           brand: currentItem.id
         }
@@ -1598,11 +2034,15 @@ class CotizadorApp {
     }
     
     if (currentCatalogId === 'model_vehicles') {
+      const vehicleItem = this.catalogPath.find(p => p.catalogId === 'subcategory_vehicles');
       const yearItem = this.catalogPath.find(p => p.catalogId === 'year_vehicles');
       const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_vehicles');
+      const vehicleType = extractVehicleType(vehicleItem);
+      
       return {
         catalogId: 'version_vehicles',
         params: { 
+          vehicle_type: vehicleType,
           year: yearItem?.id || yearItem?.name,
           brand: brandItem?.id,
           model: currentItem.id
@@ -1877,11 +2317,7 @@ class CotizadorApp {
     document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
     document.getElementById(`main-panels-${this.blockId}`).style.display = 'block';
     
-    // Hacer scroll al inicio del cotizador
-    const cotizadorBlock = document.getElementById(`cotizador-${this.blockId}`);
-    if (cotizadorBlock) {
-      cotizadorBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    // No hacer scroll automático - mantener posición actual
     
     // Actualizar progress stepper para mostrar todos los pasos completados
     const progressStepper = document.getElementById(`progress-stepper-results-${this.blockId}`);
@@ -1948,7 +2384,7 @@ class CotizadorApp {
       const newBtnContinue = btnContinue.cloneNode(true);
       btnContinue.parentNode.replaceChild(newBtnContinue, btnContinue);
       newBtnContinue.addEventListener('click', () => {
-        console.log('Botón Confirmar Préstamo clickeado');
+        this.log('Botón Confirmar Préstamo clickeado');
         this.showContactForm();
       });
     } else {
@@ -2128,7 +2564,7 @@ class CotizadorApp {
       return;
     }
     
-    console.log('Loading plan options for:', plan, 'Frequencies:', productData.frecuencies.length);
+    this.log('Loading plan options for:', plan, 'Frequencies:', productData.frecuencies.length);
     
     // Generar botones de frecuencia
     const container = document.getElementById(`frequency-options-${this.blockId}`);
@@ -2149,7 +2585,7 @@ class CotizadorApp {
           btn.classList.add('active', 'selected');
           
           this.selectedFrequency = productData.frecuencies[idx];
-          console.log('Selected frequency:', this.selectedFrequency);
+          this.log('Selected frequency:', this.selectedFrequency);
       this.updateLoanAmount();
       this.setupTermsSelect(this.selectedFrequency);
     };
@@ -2314,11 +2750,11 @@ class CotizadorApp {
   }
 
   async showContactForm() {
-    console.log('showContactForm llamado');
-    console.log('selectedPlan:', this.selectedPlan);
-    console.log('selectedFrequency:', this.selectedFrequency);
-    console.log('selectedTerm:', this.selectedTerm);
-    console.log('currentProduct:', this.currentProduct);
+    this.log('showContactForm llamado');
+    this.log('selectedPlan:', this.selectedPlan);
+    this.log('selectedFrequency:', this.selectedFrequency);
+    this.log('selectedTerm:', this.selectedTerm);
+    this.log('currentProduct:', this.currentProduct);
     
     // Verificar datos necesarios
     if (!this.selectedFrequency || !this.selectedTerm) {
@@ -2337,16 +2773,32 @@ class CotizadorApp {
     const appointmentSection = document.getElementById(`appointment-section-${this.blockId}`);
     if (appointmentSection) {
       appointmentSection.style.display = 'block';
-      appointmentSection.scrollIntoView({ behavior: 'smooth' });
+      
+      // No hacer scroll automático - mantener posición actual
       
       // Cargar sucursales si no están cargadas
       await this.loadBranches();
       
-      // Configurar fecha mínima (hoy)
+      // Configurar fecha mínima (hoy) y validación de domingos
       const dateInput = document.getElementById(`appointment-date-${this.blockId}`);
       if (dateInput) {
         const today = new Date().toISOString().split('T')[0];
         dateInput.setAttribute('min', today);
+        
+        // Validar que no sea domingo
+        dateInput.addEventListener('input', (e) => {
+          const selectedDate = new Date(e.target.value + 'T00:00:00');
+          const dayOfWeek = selectedDate.getDay();
+          
+          // 0 = Domingo
+          if (dayOfWeek === 0) {
+            alert('No se pueden agendar citas los domingos. Por favor selecciona otro día.');
+            e.target.value = '';
+            return;
+          }
+          
+          this.log('✅ Fecha seleccionada válida:', e.target.value, 'Día:', dayOfWeek);
+        });
       }
       
       // Configurar botón continuar
@@ -2436,7 +2888,8 @@ class CotizadorApp {
       }
     
     formSection.style.display = 'block';
-    formSection.scrollIntoView({ behavior: 'smooth' });
+    
+    // No hacer scroll automático - mantener posición actual
     } else {
       console.error('No se encontró el formulario de contacto');
       alert('Error: No se encontró el formulario de contacto. Por favor, recarga la página e intenta de nuevo.');
@@ -2507,7 +2960,8 @@ class CotizadorApp {
     if (catalogNav) catalogNav.style.display = 'none';
     if (categories) {
       categories.style.display = 'grid';
-      categories.scrollIntoView({ behavior: 'smooth' });
+      
+      // No hacer scroll automático - mantener posición actual
     }
     
     this.updateDetailsPanel();
@@ -2712,7 +3166,8 @@ class CotizadorApp {
         
         if (successPanel) {
         successPanel.style.display = 'block';
-        successPanel.scrollIntoView({ behavior: 'smooth' });
+        
+        // No hacer scroll automático - mantener posición actual
           
           // Configurar el botón de reset en el panel de éxito
           const resetBtn = document.getElementById(`btn-reset-${this.blockId}`);
