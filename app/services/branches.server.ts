@@ -43,7 +43,43 @@ export async function loadBranchesFromCSV() {
     
     console.log(`✅ [Branches] ${activeBranches.length} sucursales activas`);
     
-    return activeBranches;
+    // Agrupar por estado
+    const branchesByState: Record<string, any[]> = {};
+    const states: string[] = [];
+    
+    activeBranches.forEach((branch: any) => {
+      const estado = (branch.ESTADO || branch.estado || 'Sin Estado').trim();
+      
+      if (!branchesByState[estado]) {
+        branchesByState[estado] = [];
+        states.push(estado);
+      }
+      
+      branchesByState[estado].push({
+        id: branch.ID_SUC || branch.id_suc,
+        name: branch['NOMBRE DE SUCURSAL'] || branch.nombre_de_sucursal || branch.nombre,
+        address: branch['DOMICILIO COMERCIAL CASA DE EMPEÑO'] || branch.domicilio || '',
+        email: branch['CORREO SUCURSAL'] || branch.correo || '',
+        phone: branch['TEL SUC'] || branch.tel || '',
+        estado: estado
+      });
+    });
+    
+    // Ordenar estados alfabéticamente
+    states.sort();
+    
+    return {
+      states: states,
+      branchesByState: branchesByState,
+      allBranches: activeBranches.map((b: any) => ({
+        id: b.ID_SUC || b.id_suc,
+        name: b['NOMBRE DE SUCURSAL'] || b.nombre_de_sucursal || b.nombre,
+        address: b['DOMICILIO COMERCIAL CASA DE EMPEÑO'] || b.domicilio || '',
+        email: b['CORREO SUCURSAL'] || b.correo || '',
+        phone: b['TEL SUC'] || b.tel || '',
+        estado: (b.ESTADO || b.estado || 'Sin Estado').trim()
+      }))
+    };
   } catch (error) {
     console.error("❌ [Branches] Error cargando sucursales:", error);
     throw error;

@@ -236,6 +236,7 @@
   width: 100%;
   background: #f6faff; /* Fondo azul claro para todo el contenedor */
   position: relative; /* Necesario para el loader de transición */
+  overflow: visible; /* Asegurar que no rompa el sticky de los hijos */
 }
 
 .catalog-layout-v2 {
@@ -248,6 +249,7 @@
   width: 100%;
   max-width: 1100px;
   margin: 0 auto;
+  overflow: visible; /* Asegurar que no rompa el sticky */
 }
 
 /* Panel Izquierdo: Detalles del Artículo */
@@ -258,7 +260,9 @@
   border-right: none; /* Quitar borde derecho antiguo */
   padding: 24px;
   position: sticky;
-  top: 24px; /* Sticky con margen superior */
+  top: 110px !important; /* Fijado considerando el header de 60px + 50px de espacio */
+  left: 0; /* Asegurar posición horizontal */
+  align-self: flex-start; /* Asegurar que se alinee al inicio */
   height: auto; /* Altura automática */
   min-height: 600px;
   overflow-y: visible; /* Permitir ver sombras */
@@ -266,6 +270,9 @@
   flex-direction: column;
   gap: 24px;
   z-index: 10;
+  will-change: transform; /* Optimización para sticky */
+  transform: translateZ(0); /* Forzar aceleración de hardware */
+  margin-top: 0 !important; /* Eliminar cualquier margen superior */
 }
 
 .back-link {
@@ -3379,6 +3386,8 @@
   padding-bottom: 8px;
   position: relative;
   width: 100%;
+  top: 0; /* Asegurar que no se "suba" cuando se fija */
+  left: 0; /* Asegurar alineación correcta */
 }
 
 .tradein-back-btn {
@@ -3593,4 +3602,23 @@
   width: 100% !important;
   max-width: 100% !important;
   padding: 0 !important;
+}
+
+/* Trade-in Header - Oculto en desktop, visible en mobile */
+.tradein-header {
+  display: flex;
+}
+
+/* Ocultar en desktop (768px y más) */
+@media (min-width: 768px) {
+  .tradein-header {
+    display: none !important;
+  }
+}
+
+/* Visible en mobile (menos de 768px) */
+@media (max-width: 767px) {
+  .tradein-header {
+    display: flex !important;
+  }
 }

@@ -159,12 +159,24 @@ class CotizadorApp {
     if (dropdownsContainer) dropdownsContainer.innerHTML = '';
     if (itemsDiv) itemsDiv.innerHTML = '';
     
+    // Ocultar todos los paneles excepto categorías
     document.getElementById(`catalog-nav-${this.blockId}`).style.display = 'none';
+    document.getElementById(`main-panels-${this.blockId}`).style.display = 'none';
+    document.getElementById(`appointment-section-${this.blockId}`).style.display = 'none';
+    document.getElementById(`form-section-${this.blockId}`).style.display = 'none';
+    
     document.getElementById(`categories-${this.blockId}`).style.display = 'grid';
     document.querySelectorAll(`#categories-${this.blockId} .category-item`).forEach(btn => btn.classList.remove('active'));
   }
 
   selectCategory(category, button) {
+    // Redirección especial para Relojes a WhatsApp
+    if (category === 'watches') {
+      const whatsappURL = 'https://api.whatsapp.com/send/?phone=529992380524&text=Hola%2C+Fundaci%C3%B3n+Dond%C3%A9.+Estoy+interesado+en+empe%C3%B1ar+un+reloj+y+me+gustar%C3%ADa+recibir+ayuda+para+cotizarlo.&type=phone_number&app_absent=0';
+      window.open(whatsappURL, '_blank');
+      return;
+    }
+    
     this.currentCategory = category;
     this.catalogPath = [];
     
@@ -214,7 +226,7 @@ class CotizadorApp {
       'celulares': 'subcategory_miscellaneous',
       'laptops': 'subcategory_miscellaneous',
       'tablets': 'subcategory_miscellaneous',
-      'smartwatch': 'subcategory_miscellaneous',
+      'smartwatch': 'brand_catalog',  // Smartwatch va directo a marcas con id_pledge_lakin: 81
       'consoles': 'subcategory_miscellaneous',
       'others': 'subcategory_miscellaneous',
       'auto': 'subcategory_vehicles',
@@ -234,7 +246,12 @@ class CotizadorApp {
     // Guardar la categoría seleccionada para filtrar después (vehículos)
     this.selectedVehicleCategory = category;
     
-    this.loadCatalog(catalogId, {});
+    // Para smartwatch, pasar id_pledge_lakin: 81 directamente
+    if (category === 'smartwatch') {
+      this.loadCatalog(catalogId, { id_pledge_lakin: 81 });
+    } else {
+      this.loadCatalog(catalogId, {});
+    }
   }
 
   async loadCatalog(catalogId, params) {
@@ -335,23 +352,55 @@ class CotizadorApp {
       // Construir request body según el tipo de catálogo
       let dataParams;
       
+      // #region agent log
+      if (isVehicleCatalog && catalogId === 'version_vehicles') {
+        fetch('http://127.0.0.1:7242/ingest/a6e3c063-1882-4679-a0f7-f8614bbbd371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cotizador.js:356',message:'[H-D] Params recibidos para version_vehicles',data:{catalogId,paramsReceived:params,catalogPathLength:this.catalogPath?.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      }
+      // #endregion
+      
       if (isVehicleCatalog) {
         if (catalogId === 'subcategory_vehicles') {
-          // Para el primer catálogo de vehículos, solo user_id y prospect_flag
+          // Para el primer catálogo de vehículos (no necesita params específicos)
+          dataParams = {};
+        } else if (catalogId === 'year_vehicles') {
+          // Para year_vehicles, usar el orden del ejemplo del desarrollador
+          const vehicleType = params.vehicle_type || params.vehicle || '';
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a6e3c063-1882-4679-a0f7-f8614bbbd371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cotizador.js:367',message:'[H-E] vehicleType extraído para year_vehicles',data:{vehicleType,paramsVehicleType:params.vehicle_type,paramsVehicle:params.vehicle},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
           dataParams = {
-            user_id: params.user_id || '',
-            prospect_flag: params.prospect_flag ?? false
+            vehicle: "0", // Para year_vehicles, vehicle debe ser "0"
+            brand: "",
+            vehicle_type: vehicleType,
+            model: "",
+            year: ""
           };
-        } else {
-          // Para los demás catálogos de vehículos, incluir todos los parámetros
+        } else if (catalogId === 'version_vehicles') {
+          // Para version_vehicles, usar el orden del ejemplo del desarrollador
+          const vehicleType = params.vehicle_type || params.vehicle || '';
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a6e3c063-1882-4679-a0f7-f8614bbbd371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cotizador.js:380',message:'[H-A,D] Extrayendo valores para version_vehicles',data:{vehicleType,brandValue:params.brand,modelValue:params.model,yearValue:params.year,brandType:typeof params.brand,modelType:typeof params.model},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(()=>{});
+          // #endregion
           dataParams = {
-            user_id: params.user_id || '',
-            prospect_flag: params.prospect_flag ?? false,
-            vehicle: params.vehicle || params.vehicle_type || '',
+            vehicle: "0", // Para version_vehicles, vehicle debe ser "0"
             brand: params.brand || '',
+            vehicle_type: vehicleType,
             model: params.model || '',
-            year: params.year || '',
-            vehicle_type: params.vehicle_type || ''
+            year: params.year || ''
+          };
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a6e3c063-1882-4679-a0f7-f8614bbbd371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cotizador.js:391',message:'[H-B] dataParams construidos ANTES del request',data:{dataParams,propertyOrder:Object.keys(dataParams)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          // No incluir version aquí porque aún no se ha seleccionado
+        } else {
+          // Para brand_vehicles y model_vehicles, usar el mismo orden
+          const vehicleType = params.vehicle_type || params.vehicle || '';
+          dataParams = {
+            vehicle: vehicleType, // Para brand y model, vehicle = vehicle_type
+            brand: params.brand || '',
+            vehicle_type: vehicleType,
+            model: params.model || '',
+            year: params.year || ''
           };
         }
       } else {
@@ -362,6 +411,24 @@ class CotizadorApp {
         catalog_id: catalogId,
         data: dataParams
       };
+      
+      // Log para debugging (siempre mostrar para version_vehicles)
+      if (catalogId === 'version_vehicles') {
+        console.log('🔍 VERSION_VEHICLES REQUEST:');
+        console.log('📍 Endpoint:', `${this.API_URL}${endpoint}`);
+        console.log('📍 Catalog ID:', catalogId);
+        console.log('📍 Params recibidos:', JSON.stringify(params, null, 2));
+        console.log('📍 Data params construidos:', JSON.stringify(dataParams, null, 2));
+        console.log('📍 Request body completo:', JSON.stringify(requestBody, null, 2));
+        console.log('📍 CatalogPath actual:', this.catalogPath);
+      }
+      
+      this.log('📤 Request a catalog-ext:', {
+        endpoint: `${this.API_URL}${endpoint}`,
+        catalog_id: catalogId,
+        data: dataParams,
+        fullBody: requestBody
+      });
       
       const response = await fetch(`${this.API_URL}${endpoint}`, {
         method: 'POST',
@@ -374,7 +441,21 @@ class CotizadorApp {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
+        console.error('❌ Error response:', errorText);
+        console.error('❌ Request body enviado:', JSON.stringify(requestBody, null, 2));
+        console.error('❌ Data params:', JSON.stringify(dataParams, null, 2));
+        
+        // Log adicional para version_vehicles
+        if (catalogId === 'version_vehicles') {
+          console.error('❌ ANÁLISIS version_vehicles:');
+          console.error('  - vehicle_type:', dataParams.vehicle_type);
+          console.error('  - vehicle:', dataParams.vehicle);
+          console.error('  - year:', dataParams.year);
+          console.error('  - brand:', dataParams.brand);
+          console.error('  - model:', dataParams.model);
+          console.error('  - Params originales:', params);
+        }
+        
         throw new Error(`API error ${response.status}: ${errorText}`);
       }
       
@@ -416,19 +497,30 @@ class CotizadorApp {
       
       // Auto-selección para saltar redundancia (ej: Consolas -> Consolas -> Marca)
       // Solo aplicar si estamos en el primer nivel (catalogPath vacío)
-      this.log(`🔍 Revisando auto-selección. Categoría: ${this.currentCategory}, Path: ${this.catalogPath.length}`);
+      // NO aplicar si el usuario vino desde "Electronics" (debe elegir tipo)
+      console.log(`🔍🔍🔍 Revisando auto-selección. Categoría: ${this.currentCategory}, Path: ${this.catalogPath.length}, CatalogId: ${catalogId}`);
       
-      if (this.catalogPath.length === 0 && this.currentCategory) {
+      // Si el usuario seleccionó "Electronics", debe elegir subcategoría (NO auto-seleccionar)
+      const skipAutoSelect = this.currentCategory === 'electronics' && catalogId === 'subcategory_miscellaneous';
+      console.log(`🔍 skipAutoSelect:`, skipAutoSelect);
+      console.log(`🔍 Condición completa:`, this.catalogPath.length === 0 && this.currentCategory && !skipAutoSelect);
+      
+      if (this.catalogPath.length === 0 && this.currentCategory && !skipAutoSelect) {
         const categoryMap = {
           'consoles': ['Consola de Videojuego', 'Consolas', 'Videojuegos'],
           'celulares': ['Celular', 'Celulares', 'Telefonia', 'Telefonía'],
           'laptops': ['Laptop', 'Laptops', 'Computadoras', 'Portátiles'],
-          'tablets': ['Tableta', 'Tabletas', 'Tablets', 'iPad'],
-          'smartwatch': ['Smartwatch', 'Relojes Inteligentes', 'Wearables']
+          'tablets': ['Tableta', 'Tabletas', 'Tablets', 'iPad']
+          // Smartwatch no está en subcategory_miscellaneous, tiene su propio flujo
           // No aplicamos a 'electronics' porque ese sí requiere elegir subcategoría
         };
 
         const targetKeywords = categoryMap[this.currentCategory];
+        
+        this.log('🔍 targetKeywords:', targetKeywords);
+        this.log('🔍 result.catalog existe?', !!result.catalog);
+        this.log('🔍 result.catalog.data existe?', !!result.catalog?.data);
+        this.log('🔍 result.catalog.data.length:', result.catalog?.data?.length);
         
         if (targetKeywords && targetKeywords.length > 0 && result.catalog && result.catalog.data) {
           this.log(`🔍 Buscando keywords: ${targetKeywords.join(', ')} en datos:`, result.catalog.data.map(i => i.name));
@@ -448,7 +540,10 @@ class CotizadorApp {
             return; 
           } else {
             this.log(`⚠️ No se encontró coincidencia para auto-selección.`);
+            this.log(`⚠️ Nombres en datos:`, result.catalog.data.map(i => i.name));
           }
+        } else {
+          this.log(`⚠️ Condiciones no cumplidas para auto-selección`);
         }
       }
       
@@ -571,6 +666,7 @@ class CotizadorApp {
       const isVehicleTypeCatalog = catalog.catalog_id === 'subcategory_vehicles';
       const isYearCatalog = catalog.catalog_id === 'year_vehicles';
       const isSubcategoryCatalog = catalog.catalog_id === 'subcategory_miscellaneous';
+      const isOthersCatalog = catalog.catalog_id === 'subcategory_miscellaneous_others';
       
       if (isBrandCatalog) {
         this.renderBrandSelection(catalog, dropdownsContainer);
@@ -586,6 +682,8 @@ class CotizadorApp {
         this.renderYearSelection(catalog, dropdownsContainer);
       } else if (isSubcategoryCatalog) {
         this.renderSubcategorySelection(catalog, dropdownsContainer);
+      } else if (isOthersCatalog) {
+        this.renderOthersSelection(catalog, dropdownsContainer);
       } else {
         this.renderStandardDropdown(catalog, dropdownsContainer);
       }
@@ -828,13 +926,39 @@ class CotizadorApp {
       }
       
       items.forEach(item => {
+        // Determinar el icono según el tipo de artículo
+        const itemName = item.name.toLowerCase();
+        let iconSvg = '';
+        
+        if (itemName.includes('celular') || itemName.includes('telefon')) {
+          // Icono de celular
+          iconSvg = `<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+        } else if (itemName.includes('laptop') || itemName.includes('computadora')) {
+          // Icono de laptop
+          iconSvg = `<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>`;
+        } else if (itemName.includes('tablet') || itemName.includes('tableta') || itemName.includes('ipad')) {
+          // Icono de tablet
+          iconSvg = `<rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+        } else if (itemName.includes('consola') || itemName.includes('videojuego')) {
+          // Icono proporcionado por el usuario
+          iconSvg = `<rect x="2" y="6" width="20" height="12" rx="6" /><path d="M6 12h4m-2-2v4"/><circle cx="15.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>`;
+        } else if (itemName.includes('pantalla') || itemName.includes('monitor') || itemName.includes('tv')) {
+          // Icono de pantalla/monitor
+          iconSvg = `<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>`;
+        } else if (itemName.includes('smartwatch') || itemName.includes('reloj')) {
+          // Icono de smartwatch
+          iconSvg = `<circle cx="12" cy="12" r="7"/><polyline points="12 6 12 12 16 14"/>`;
+        } else {
+          // Icono genérico para "Otro"
+          iconSvg = `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/>`;
+        }
+        
         const row = document.createElement('div');
         row.className = 'brand-list-item model-list-item';
         row.innerHTML = `
           <div class="model-info">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-              <line x1="12" y1="18" x2="12.01" y2="18"/>
+              ${iconSvg}
             </svg>
             <span>${item.name}</span>
           </div>
@@ -853,6 +977,96 @@ class CotizadorApp {
     renderList(catalog.data);
     
     wrapper.appendChild(subcategoriesList);
+    container.appendChild(wrapper);
+    
+    // Lógica de búsqueda
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      
+      if (term === '') {
+        renderList(catalog.data);
+      } else {
+        const filtered = catalog.data.filter(item => item.name.toLowerCase().includes(term));
+        renderList(filtered);
+      }
+    });
+  }
+
+  renderOthersSelection(catalog, container) {
+    // Limpiar contenedor
+    container.innerHTML = '';
+    
+    // Crear estructura principal (igual que subcategory)
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper';
+    
+    // Header con botón de volver
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    // Stepper móvil
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
+    
+    // Título
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = '¿Qué producto es?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.textContent = 'Selecciona el artículo de la lista.';
+    wrapper.appendChild(subtitle);
+    
+    // Barra de búsqueda
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'brand-search-container';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'brand-search-input';
+    searchInput.placeholder = 'Buscar artículo...';
+    searchContainer.appendChild(searchInput);
+    wrapper.appendChild(searchContainer);
+    
+    // Lista de productos
+    const productsList = document.createElement('div');
+    productsList.className = 'other-brands-list';
+    
+    const renderList = (items) => {
+      productsList.innerHTML = '';
+      if (items.length === 0) {
+        productsList.innerHTML = '<div class="no-results">No se encontraron artículos</div>';
+        return;
+      }
+      
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'brand-list-item model-list-item';
+        row.innerHTML = `
+          <div class="model-info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="9" y1="9" x2="15" y2="9"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+            <span>${item.name}</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        `;
+        row.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.selectCatalogItem(item, catalog.catalog_id);
+        });
+        productsList.appendChild(row);
+      });
+    };
+    
+    // Renderizar lista inicial
+    renderList(catalog.data);
+    
+    wrapper.appendChild(productsList);
     container.appendChild(wrapper);
     
     // Lógica de búsqueda
@@ -906,13 +1120,30 @@ class CotizadorApp {
     searchContainer.appendChild(searchInput);
     wrapper.appendChild(searchContainer);
     
-    // Definir marcas populares y sus estilos
-    const popularBrands = [
-      { name: 'APPLE', color: '#111827', text: 'white' },
-      { name: 'SAMSUNG', color: '#3b82f6', text: 'white' },
-      { name: 'XIAOMI', color: '#f97316', text: 'white' },
-      { name: 'MOTOROLA', color: '#6366f1', text: 'white' }
-    ];
+    // Definir marcas populares según la categoría
+    let popularBrands = [];
+    
+    // Verificar si es flujo de consolas
+    const isConsoleBrand = this.currentCategory === 'consoles' || 
+                           this.catalogPath.some(p => p.name && p.name.toLowerCase().includes('consola'));
+    
+    if (isConsoleBrand) {
+      // Marcas populares de consolas
+      popularBrands = [
+        { name: 'SONY', color: '#0070cc', text: 'white' },        // Azul PlayStation
+        { name: 'MICROSOFT', color: '#107c10', text: 'white' },   // Verde Xbox
+        { name: 'NINTENDO', color: '#e60012', text: 'white' },    // Rojo Nintendo
+        { name: 'LOGITECH', color: '#00b8fc', text: 'white' }     // Azul Logitech (última posición)
+      ];
+    } else {
+      // Marcas populares de celulares/electrónicos con colores personalizados
+      popularBrands = [
+        { name: 'APPLE', color: '#677A85', text: 'white' },
+        { name: 'SAMSUNG', color: '#003568', text: 'white' },
+        { name: 'XIAOMI', color: '#49ABD8', text: 'white' },
+        { name: 'MOTOROLA', color: '#FF6800', text: 'white' }
+      ];
+    }
     
     // Separar datos
     const popularItems = [];
@@ -929,20 +1160,70 @@ class CotizadorApp {
       }
     });
     
-    // Grid de marcas populares
+    // Ordenar popularItems según el orden definido en popularBrands (Logitech al final)
+    if (popularItems.length > 0) {
+      popularItems.sort((a, b) => {
+        const indexA = popularBrands.findIndex(brand => brand.name === a.config.name);
+        const indexB = popularBrands.findIndex(brand => brand.name === b.config.name);
+        return indexA - indexB;
+      });
+    }
+    
+    // Grid de marcas populares con diseño mejorado (Figma)
     if (popularItems.length > 0) {
       const popularGrid = document.createElement('div');
-      popularGrid.className = 'popular-brands-grid';
+      popularGrid.className = 'popular-brands-grid-new';
+      popularGrid.style.display = 'grid';
+      popularGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
+      popularGrid.style.gap = '16px';
+      popularGrid.style.marginBottom = '20px';
+      popularGrid.style.maxWidth = '100%';
+      
+      // Obtener URLs de imágenes desde la configuración pasada por Liquid
+      const brandImages = this.config?.brandImages || {};
       
       popularItems.forEach(({ item, index, config }) => {
         const btn = document.createElement('button');
-        btn.className = 'brand-card-btn';
-        btn.style.backgroundColor = config.color;
-        btn.style.color = config.text;
-        btn.innerHTML = `
-          <span class="brand-name">${item.name}</span>
-          <div class="brand-card-decoration"></div>
+        btn.className = 'brand-card-btn-new';
+        btn.style.cssText = `
+          background-color: ${config.color};
+          height: 111px;
+          border-radius: 16px;
+          position: relative;
+          overflow: hidden;
+          border: none;
+          cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 20px 0 15px;
         `;
+        
+        const brandName = item.name.toUpperCase();
+        const imageUrl = brandImages[brandName];
+        
+        // Solo Logitech alineado a la izquierda; demás consolas y teléfonos centrados
+        const isLogitech = brandName === 'LOGITECH';
+        const imageJustify = isLogitech ? 'flex-start' : 'center';
+        const imageObjectPosition = isLogitech ? 'left bottom' : 'bottom';
+        
+        btn.innerHTML = `
+          <div style="position: relative; z-index: 1; width: 111px; height: 100%; display: flex; align-items: flex-end; justify-content: ${imageJustify}; overflow: hidden;">
+            ${imageUrl ? `<img src="${imageUrl}" alt="${item.name}" style="width: auto; height: auto; max-width: 111px; max-height: 110px; object-fit: contain; object-position: ${imageObjectPosition}; image-rendering: auto; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; filter: contrast(1.05) brightness(1.02); display: block; margin: 0; padding: 0; line-height: 0; vertical-align: bottom;" onerror="this.style.display='none'">` : ''}
+          </div>
+          <span style="color: white; font-size: 27px; font-weight: 700; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif; text-align: right; z-index: 2; line-height: 1.2; flex-shrink: 0;">${item.name}</span>
+        `;
+        
+        btn.onmouseover = () => {
+          btn.style.transform = 'scale(1.02)';
+          btn.style.boxShadow = '0 8px 16px rgba(0,0,0,0.15)';
+        };
+        btn.onmouseout = () => {
+          btn.style.transform = 'scale(1)';
+          btn.style.boxShadow = 'none';
+        };
         btn.onclick = (e) => {
           e.preventDefault();
           this.log('👉 Click en marca popular:', item.name);
@@ -1882,16 +2163,31 @@ class CotizadorApp {
     
     // Flujo para electrónicos (subcategory_miscellaneous)
     if (currentCatalogId === 'subcategory_miscellaneous') {
-      // El siguiente es brand_catalog, necesita id_pledge_lakin
       const id_pledge_lakin = currentItem.id_pledge_Lakin || 
                               currentItem.id_pledge_lakin || 
                               currentItem.child_ids?.find(c => c.name === 'id_pledge_lakin')?.value ||
-                              60; // default
+                              60;
       
+      // Si el item seleccionado es "Otro", cargar el catálogo especial de otros
+      if (currentItem.name && currentItem.name.toLowerCase().includes('otro')) {
+        return {
+          catalogId: 'subcategory_miscellaneous_others',
+          params: { id_pledge_lakin: id_pledge_lakin }
+        };
+      }
+      
+      // Para los demás (Celular, Laptop, etc.), ir a brand_catalog
       return {
         catalogId: 'brand_catalog',
         params: { id_pledge_lakin: id_pledge_lakin }
       };
+    }
+    
+    // Flujo para otros productos (subcategory_miscellaneous_others)
+    if (currentCatalogId === 'subcategory_miscellaneous_others') {
+      // Al seleccionar un producto de "Otros", calcular precio directamente
+      // No hay más subcat para estos productos
+      return null; // Esto hará que se calcule el precio automáticamente
     }
     
     // Flujo para marcas (brand_catalog)
@@ -2001,7 +2297,10 @@ class CotizadorApp {
       
       return {
         catalogId: 'year_vehicles',
-        params: { vehicle_type: vehicleType }
+        params: { 
+          vehicle_type: vehicleType,
+          vehicle: vehicleType // Asegurar que vehicle también esté presente
+        }
       };
     }
     
@@ -2013,6 +2312,7 @@ class CotizadorApp {
         catalogId: 'brand_vehicles',
         params: { 
           vehicle_type: vehicleType,
+          vehicle: vehicleType, // vehicle debe ser igual a vehicle_type
           year: currentItem.id || currentItem.name 
         }
       };
@@ -2027,6 +2327,7 @@ class CotizadorApp {
         catalogId: 'model_vehicles',
         params: { 
           vehicle_type: vehicleType,
+          vehicle: vehicleType, // vehicle debe ser igual a vehicle_type
           year: yearItem?.id || yearItem?.name,
           brand: currentItem.id
         }
@@ -2034,20 +2335,9 @@ class CotizadorApp {
     }
     
     if (currentCatalogId === 'model_vehicles') {
-      const vehicleItem = this.catalogPath.find(p => p.catalogId === 'subcategory_vehicles');
-      const yearItem = this.catalogPath.find(p => p.catalogId === 'year_vehicles');
-      const brandItem = this.catalogPath.find(p => p.catalogId === 'brand_vehicles');
-      const vehicleType = extractVehicleType(vehicleItem);
-      
-      return {
-        catalogId: 'version_vehicles',
-        params: { 
-          vehicle_type: vehicleType,
-          year: yearItem?.id || yearItem?.name,
-          brand: brandItem?.id,
-          model: currentItem.id
-        }
-      };
+      // Para vehículos, ir directo al precio después de seleccionar el modelo
+      // No hay catálogo de versiones en catalog-ext, version_id se envía vacío al precio
+      return null; // Esto calculará el precio automáticamente
     }
     
     // Si el item tiene child directo, usarlo
@@ -2146,8 +2436,18 @@ class CotizadorApp {
     try {
       const priceParams = this.buildPriceParams();
       
+      // Usar price-ext para autos (category_id 2 o 6), price normal para otros
+      const isVehicle = priceParams.category_id === 2 || priceParams.category_id === 6;
+      const priceEndpoint = isVehicle ? '/simulator/price-ext' : '/simulator/price';
+      
+      // #region agent log
+      if (isVehicle) {
+        fetch('http://127.0.0.1:7242/ingest/a6e3c063-1882-4679-a0f7-f8614bbbd371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'cotizador.js:2442',message:'[H-F] Request construido para price-ext',data:{priceParams,requestBody:{data:priceParams},endpoint:priceEndpoint},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
+      }
+      // #endregion
+      
       // Calculate price
-      const priceResponse = await fetch(`${this.API_URL}/simulator/price`, {
+      const priceResponse = await fetch(`${this.API_URL}${priceEndpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2158,7 +2458,9 @@ class CotizadorApp {
       
       if (!priceResponse.ok) {
         const errorText = await priceResponse.text();
-        console.error('Price error:', errorText);
+        console.error('❌ Price error:', errorText);
+        console.error('❌ Price request enviado:', JSON.stringify({ data: priceParams }, null, 2));
+        console.error('❌ Price params construidos:', JSON.stringify(priceParams, null, 2));
         throw new Error(`Error calculando precio: ${priceResponse.status}`);
       }
       
@@ -2295,7 +2597,9 @@ class CotizadorApp {
       params.feature1_id = f1?.charat1_id || "";
       params.feature2_id = f2?.charat2_id || "";
       params.feature3_id = f3?.charat3_id || "";
-    } else if (catalogId === 'subcategory_vehicles' || this.currentCategory === 'vehicles') {
+    } else if (catalogId === 'subcategory_vehicles' || this.currentCategory === 'vehicles' || 
+               catalogId === 'model_vehicles' || catalogId === 'brand_vehicles' || 
+               catalogId === 'year_vehicles' || catalogId === 'version_vehicles') {
       category_id = 2;
       const vehicleType = this.catalogPath[0]?.child_ids?.find(c => c.name === 'vehicle_type')?.id;
       pledge_id = vehicleType === "2" ? 2 : 1;
@@ -2303,10 +2607,13 @@ class CotizadorApp {
       const brand = this.catalogPath.find(p => p.catalogId === 'brand_vehicles');
       const model = this.catalogPath.find(p => p.catalogId === 'model_vehicles');
       const version = this.catalogPath.find(p => p.catalogId === 'version_vehicles');
-      params.vehicle = this.catalogPath[0]?.child_ids?.find(c => c.name === 'vehicle')?.id || "0";
+      
+      // Construir params en el orden exacto del ejemplo del desarrollador
+      // Orden: brand_id, model_id, vehicle, version_id, year
       params.brand_id = brand?.id || "";
       params.model_id = model?.id || "";
-      params.version_id = version?.id || "";
+      params.vehicle = vehicleType || "1";
+      params.version_id = version?.id || ""; // version_id vacío si no hay versión
       params.year = year?.id || year?.name || "";
     }
     
@@ -2801,6 +3108,20 @@ class CotizadorApp {
         });
       }
       
+      // Configurar botón volver a pagos
+      const btnBackToLoan = document.getElementById(`btn-back-to-loan-${this.blockId}`);
+      if (btnBackToLoan) {
+        btnBackToLoan.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Ocultar sección de citas y mostrar panel de pagos
+          appointmentSection.style.display = 'none';
+          const mainPanels = document.getElementById(`main-panels-${this.blockId}`);
+          if (mainPanels) {
+            mainPanels.style.display = 'block';
+          }
+        });
+      }
+      
       // Configurar botón continuar
       const btnContinue = document.getElementById(`btn-continue-appointment-${this.blockId}`);
       if (btnContinue) {
@@ -3071,7 +3392,7 @@ class CotizadorApp {
         'celulares': 'subcategory_miscellaneous',
         'laptops': 'subcategory_miscellaneous',
         'tablets': 'subcategory_miscellaneous',
-        'smartwatch': 'subcategory_miscellaneous',
+        'smartwatch': 'brand_catalog',  // Smartwatch va directo a marcas con id_pledge_lakin: 81
         'consoles': 'subcategory_miscellaneous',
         'others': 'subcategory_miscellaneous',
         'vehicles': 'subcategory_vehicles',

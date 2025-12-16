@@ -82,18 +82,18 @@
           <span class="cat-label">Consolas</span>
         </button>
 
-        <button type="button" class="category-item" data-category="vehicles">
+        <button type="button" class="category-item" data-category="auto">
           <div class="cat-img-container">
-            <img src="{{ 'icon-autos-motos.png' | asset_url }}" alt="Autos y Motos" width="96" height="91" />
+            <img src="{{ 'icon-autos-motos.png' | asset_url }}" alt="Auto" width="96" height="91" />
           </div>
-          <span class="cat-label">Autos y<br>Motos</span>
+          <span class="cat-label">Auto</span>
         </button>
 
-        <button type="button" class="category-item" data-category="auto_financing">
+        <button type="button" class="category-item" data-category="moto">
           <div class="cat-img-container">
-            <img src="{{ 'icon-financiamiento-auto.png' | asset_url }}" alt="Financiamiento" width="96" height="91" />
+            <img src="{{ 'icon-moto.png' | asset_url }}" alt="Moto" width="96" height="91" />
           </div>
-          <span class="cat-label">Financiamiento<br>Auto</span>
+          <span class="cat-label">Moto</span>
         </button>
       </div>
     </div>
@@ -313,8 +313,26 @@
     <!-- Paso de Selección de Sucursal y Cita -->
     <div class="cotizador-appointment-section" id="appointment-section-{{ block.id }}" style="display: none;">
       <div class="appointment-container">
+        <!-- Botón de volver a pagos -->
+        <a href="#" class="back-link" id="btn-back-to-loan-{{ block.id }}" style="margin-bottom: 1rem;">
+          ← Volver a selección de pagos
+        </a>
+        
         <h2>Selecciona tu sucursal y horario</h2>
         <p class="appointment-subtitle">Elige la sucursal más cercana y el horario que mejor te convenga</p>
+        
+        <!-- Selector de Estado (NUEVO) -->
+        <div class="form-field">
+          <label for="state-select-{{ block.id }}">Estado *</label>
+          <select 
+            id="state-select-{{ block.id }}" 
+            name="state" 
+            required
+            class="cotizador-select"
+          >
+            <option value="">Selecciona tu estado</option>
+          </select>
+        </div>
         
         <!-- Selector de Sucursal -->
         <div class="form-field">
@@ -324,8 +342,9 @@
             name="branchId" 
             required
             class="cotizador-select"
+            disabled
           >
-            <option value="">Cargando sucursales...</option>
+            <option value="">Primero selecciona un estado</option>
           </select>
         </div>
 
@@ -486,7 +505,17 @@
       if (typeof CotizadorApp !== 'undefined') {
         try {
           window.cotizadorApp_{{ block.id }} = new CotizadorApp('{{ block.id }}', {
-            shop: '{{ shop.permanent_domain }}'
+            shop: '{{ shop.permanent_domain }}',
+            brandImages: {
+              APPLE: '{{ "brand-apple.png" | asset_url }}',
+              SAMSUNG: '{{ "brand-samsung.png" | asset_url }}',
+              XIAOMI: '{{ "brand-xiaomi.png" | asset_url }}',
+              MOTOROLA: '{{ "brand-motorola.png" | asset_url }}',
+              SONY: '{{ "brand-sony.png" | asset_url }}',
+              MICROSOFT: '{{ "brand-microsoft.png" | asset_url }}',
+              NINTENDO: '{{ "brand-nintendo.png" | asset_url }}',
+              LOGITECH: '{{ "brand-logitech.png" | asset_url }}'
+            }
           });
           console.log('✅ CotizadorApp inicializado correctamente');
         } catch (error) {
