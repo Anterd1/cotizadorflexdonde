@@ -428,16 +428,16 @@ class CotizadorApp {
         data: dataParams
       };
       
-      // Log para debugging (siempre mostrar para version_vehicles)
-      if (catalogId === 'version_vehicles') {
-        console.log('🔍 VERSION_VEHICLES REQUEST:');
-        console.log('📍 Endpoint:', `${this.API_URL}${endpoint}`);
-        console.log('📍 Catalog ID:', catalogId);
-        console.log('📍 Params recibidos:', JSON.stringify(params, null, 2));
-        console.log('📍 Data params construidos:', JSON.stringify(dataParams, null, 2));
-        console.log('📍 Request body completo:', JSON.stringify(requestBody, null, 2));
-        console.log('📍 CatalogPath actual:', this.catalogPath);
-      }
+      // Log para debugging (comentado para producción)
+      // if (catalogId === 'version_vehicles') {
+      //   console.log('🔍 VERSION_VEHICLES REQUEST:');
+      //   console.log('📍 Endpoint:', `${this.API_URL}${endpoint}`);
+      //   console.log('📍 Catalog ID:', catalogId);
+      //   console.log('📍 Params recibidos:', JSON.stringify(params, null, 2));
+      //   console.log('📍 Data params construidos:', JSON.stringify(dataParams, null, 2));
+      //   console.log('📍 Request body completo:', JSON.stringify(requestBody, null, 2));
+      //   console.log('📍 CatalogPath actual:', this.catalogPath);
+      // }
       
       this.log('📤 Request a catalog-ext:', {
         endpoint: `${this.API_URL}${endpoint}`,
