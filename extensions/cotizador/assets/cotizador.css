@@ -3584,11 +3584,13 @@
   box-shadow: 0 4px 6px -1px rgba(251, 191, 36, 0.3);
 }
 
-.metal-btn-primary.disabled {
-  background: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
-  box-shadow: none;
+.metal-btn-primary.disabled,
+.metal-btn-primary:disabled {
+  background: #f3f4f6 !important;
+  color: #9ca3af !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 0.6;
 }
 
 @media (max-width: 480px) {

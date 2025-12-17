@@ -2056,6 +2056,9 @@ class CotizadorApp {
     karatSelect.addEventListener('change', validateForm);
     weightInput.addEventListener('input', validateForm);
     
+    // Validar estado inicial
+    validateForm();
+    
     calculateBtn.onclick = async () => {
       if (calculateBtn.disabled) return;
       
