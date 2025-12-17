@@ -494,7 +494,7 @@
 <script>
   (function() {
     function initCotizador() {
-      console.log('🔧 Intentando inicializar CotizadorApp...');
+      // console.log('🔧 Intentando inicializar CotizadorApp...');
       if (typeof CotizadorApp !== 'undefined') {
         try {
           window.cotizadorApp_{{ block.id }} = new CotizadorApp('{{ block.id }}', {
@@ -520,7 +520,7 @@
               XIAOMI: '{{ "brand-xiaomi-laptop.png" | asset_url }}'
             }
           });
-          console.log('✅ CotizadorApp inicializado correctamente');
+          // console.log('✅ CotizadorApp inicializado correctamente');
         } catch (error) {
           console.error('❌ Error al inicializar CotizadorApp:', error);
         }
@@ -528,7 +528,7 @@
         console.error('❌ CotizadorApp no está definido.');
         setTimeout(() => {
           if (typeof CotizadorApp !== 'undefined') {
-            console.log('🔄 Reintentando inicialización...');
+            // console.log('🔄 Reintentando inicialización...');
             initCotizador();
           }
         }, 500);
