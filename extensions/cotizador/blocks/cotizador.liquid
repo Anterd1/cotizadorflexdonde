@@ -209,7 +209,7 @@
               <div class="loan-offer-section">
                 <div class="loan-approved-badge">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-                  <span>OFERTA APROBADA</span>
+                  <span>OFERTA PRE-APROBADA</span>
                 </div>
                 <p class="loan-receive-label">Recibe hasta:</p>
                 <h1 class="loan-amount-huge"><span>$</span><span id="loan-amount-{{ block.id }}">0.00</span></h1>
@@ -348,39 +348,32 @@
           </select>
         </div>
 
-        <!-- Selector de Fecha -->
+        <!-- Selector de Fecha con opciones predefinidas -->
         <div class="form-field">
           <label for="appointment-date-{{ block.id }}">Fecha de cita *</label>
+          <div id="date-options-{{ block.id }}" class="date-options-grid">
+            <!-- Se llenarán dinámicamente las próximas 4 fechas disponibles -->
+          </div>
           <input 
-            type="date" 
+            type="hidden" 
             id="appointment-date-{{ block.id }}" 
             name="appointmentDate" 
             required
-            class="cotizador-input"
-            min=""
           />
         </div>
 
-        <!-- Selector de Hora -->
+        <!-- Selector de Hora con opciones horizontales -->
         <div class="form-field">
           <label for="appointment-time-{{ block.id }}">Hora de cita *</label>
-          <select 
+          <div id="time-options-{{ block.id }}" class="time-options-grid">
+            <!-- Se llenarán dinámicamente los horarios disponibles -->
+          </div>
+          <input 
+            type="hidden" 
             id="appointment-time-{{ block.id }}" 
             name="appointmentTime" 
             required
-            class="cotizador-select"
-          >
-            <option value="">Selecciona una hora</option>
-            <option value="09:00">09:00 AM</option>
-            <option value="10:00">10:00 AM</option>
-            <option value="11:00">11:00 AM</option>
-            <option value="12:00">12:00 PM</option>
-            <option value="13:00">01:00 PM</option>
-            <option value="14:00">02:00 PM</option>
-            <option value="15:00">03:00 PM</option>
-            <option value="16:00">04:00 PM</option>
-            <option value="17:00">05:00 PM</option>
-          </select>
+          />
         </div>
 
         <div class="form-field">
@@ -515,6 +508,16 @@
               MICROSOFT: '{{ "brand-microsoft.png" | asset_url }}',
               NINTENDO: '{{ "brand-nintendo.png" | asset_url }}',
               LOGITECH: '{{ "brand-logitech.png" | asset_url }}'
+            },
+            brandImagesTablet: {
+              APPLE: '{{ "brand-apple-tablet.png" | asset_url }}',
+              SAMSUNG: '{{ "brand-samsung-tablet.png" | asset_url }}',
+              XIAOMI: '{{ "brand-xiaomi-tablet.png" | asset_url }}'
+            },
+            brandImagesLaptop: {
+              APPLE: '{{ "brand-apple-laptop.png" | asset_url }}',
+              SAMSUNG: '{{ "brand-samsung-laptop.png" | asset_url }}',
+              XIAOMI: '{{ "brand-xiaomi-laptop.png" | asset_url }}'
             }
           });
           console.log('✅ CotizadorApp inicializado correctamente');

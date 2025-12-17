@@ -139,6 +139,16 @@ class CotizadorApp {
         this.resetCatalog();
       });
     }
+    
+    // Help button - Redirigir a WhatsApp
+    const helpButton = document.querySelector('.help-button');
+    if (helpButton) {
+      helpButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        const whatsappURL = 'https://api.whatsapp.com/send/?phone=529992380524&text=Hola%2C+Fundaci%C3%B3n+Dond%C3%A9.+No+encuentro+mi+art%C3%ADculo+en+el+cotizador+y+me+gustar%C3%ADa+recibir+ayuda+personalizada.&type=phone_number&app_absent=0';
+        window.open(whatsappURL, '_blank');
+      });
+    }
   }
 
   resetCatalog() {
@@ -170,9 +180,15 @@ class CotizadorApp {
   }
 
   selectCategory(category, button) {
-    // Redirección especial para Relojes a WhatsApp
+    // Redirección especial para Relojes y Smartwatch a WhatsApp
     if (category === 'watches') {
       const whatsappURL = 'https://api.whatsapp.com/send/?phone=529992380524&text=Hola%2C+Fundaci%C3%B3n+Dond%C3%A9.+Estoy+interesado+en+empe%C3%B1ar+un+reloj+y+me+gustar%C3%ADa+recibir+ayuda+para+cotizarlo.&type=phone_number&app_absent=0';
+      window.open(whatsappURL, '_blank');
+      return;
+    }
+    
+    if (category === 'smartwatch') {
+      const whatsappURL = 'https://api.whatsapp.com/send/?phone=529992380524&text=Hola%2C+Fundaci%C3%B3n+Dond%C3%A9.+Estoy+interesado+en+empe%C3%B1ar+un+smartwatch+y+me+gustar%C3%ADa+recibir+ayuda+para+cotizarlo.&type=phone_number&app_absent=0';
       window.open(whatsappURL, '_blank');
       return;
     }
@@ -498,12 +514,10 @@ class CotizadorApp {
       // Auto-selección para saltar redundancia (ej: Consolas -> Consolas -> Marca)
       // Solo aplicar si estamos en el primer nivel (catalogPath vacío)
       // NO aplicar si el usuario vino desde "Electronics" (debe elegir tipo)
-      console.log(`🔍🔍🔍 Revisando auto-selección. Categoría: ${this.currentCategory}, Path: ${this.catalogPath.length}, CatalogId: ${catalogId}`);
+      this.log(`🔍 Revisando auto-selección. Categoría: ${this.currentCategory}, Path: ${this.catalogPath.length}, CatalogId: ${catalogId}`);
       
       // Si el usuario seleccionó "Electronics", debe elegir subcategoría (NO auto-seleccionar)
       const skipAutoSelect = this.currentCategory === 'electronics' && catalogId === 'subcategory_miscellaneous';
-      console.log(`🔍 skipAutoSelect:`, skipAutoSelect);
-      console.log(`🔍 Condición completa:`, this.catalogPath.length === 0 && this.currentCategory && !skipAutoSelect);
       
       if (this.catalogPath.length === 0 && this.currentCategory && !skipAutoSelect) {
         const categoryMap = {
@@ -1082,6 +1096,206 @@ class CotizadorApp {
     });
   }
 
+  renderModelSelection(catalog, container) {
+    // Similar a renderBrandSelection pero con iconos según el tipo de producto
+    container.innerHTML = '';
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper';
+    
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
+    
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = '¿Qué modelo es?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.textContent = 'Selecciona el modelo de tu dispositivo.';
+    wrapper.appendChild(subtitle);
+    
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'brand-search-container';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'brand-search-input';
+    searchInput.placeholder = 'Buscar modelo...';
+    searchContainer.appendChild(searchInput);
+    wrapper.appendChild(searchContainer);
+    
+    const modelsList = document.createElement('div');
+    modelsList.className = 'other-brands-list';
+    
+    // Determinar icono según el tipo de producto en catalogPath o currentCategory
+    let iconSvg = '';
+    const productType = this.catalogPath.find(p => p.catalogId === 'subcategory_miscellaneous');
+    const typeName = productType?.name?.toLowerCase() || '';
+    const currentCat = this.currentCategory || '';
+    
+    // Usar tanto el nombre del tipo como la categoría actual para determinar el icono
+    if (typeName.includes('celular') || typeName.includes('telefon') || currentCat === 'celulares') {
+      iconSvg = `<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+    } else if (typeName.includes('laptop') || typeName.includes('computadora') || currentCat === 'laptops') {
+      iconSvg = `<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>`;
+    } else if (typeName.includes('tablet') || typeName.includes('tableta') || currentCat === 'tablets') {
+      iconSvg = `<rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+    } else if (typeName.includes('consola') || currentCat === 'consoles') {
+      iconSvg = `<rect x="2" y="6" width="20" height="12" rx="6" /><path d="M6 12h4m-2-2v4"/><circle cx="15.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>`;
+    } else if (typeName.includes('pantalla') || typeName.includes('monitor')) {
+      iconSvg = `<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>`;
+    } else if (typeName.includes('smartwatch') || typeName.includes('reloj') || currentCat === 'smartwatch') {
+      iconSvg = `<circle cx="12" cy="12" r="7"/><polyline points="12 6 12 12 16 14"/>`;
+    } else {
+      // Icono genérico
+      iconSvg = `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/>`;
+    }
+    
+    const renderList = (items) => {
+      modelsList.innerHTML = '';
+      if (items.length === 0) {
+        modelsList.innerHTML = '<div class="no-results">No se encontraron modelos</div>';
+        return;
+      }
+      
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'brand-list-item model-list-item';
+        row.innerHTML = `
+          <div class="model-info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              ${iconSvg}
+            </svg>
+            <span>${item.name}</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        `;
+        row.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.selectCatalogItem(item, catalog.catalog_id);
+        });
+        modelsList.appendChild(row);
+      });
+    };
+    
+    renderList(catalog.data);
+    wrapper.appendChild(modelsList);
+    container.appendChild(wrapper);
+    
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      if (term === '') {
+        renderList(catalog.data);
+      } else {
+        const filtered = catalog.data.filter(item => item.name.toLowerCase().includes(term));
+        renderList(filtered);
+      }
+    });
+  }
+
+  renderFeatureSelection(catalog, container) {
+    // Similar a renderModelSelection pero para características
+    container.innerHTML = '';
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = 'brand-selection-wrapper';
+    
+    const header = this.createTradeInHeader();
+    wrapper.appendChild(header);
+    
+    const mobileStepper = this.createMobileStepper();
+    wrapper.appendChild(mobileStepper);
+    
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = '¿Qué característica tiene?';
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.textContent = 'Selecciona la característica de tu dispositivo.';
+    wrapper.appendChild(subtitle);
+    
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'brand-search-container';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'brand-search-input';
+    searchInput.placeholder = 'Buscar característica...';
+    searchContainer.appendChild(searchInput);
+    wrapper.appendChild(searchContainer);
+    
+    const featuresList = document.createElement('div');
+    featuresList.className = 'other-brands-list';
+    
+    // Determinar icono según el tipo de producto o currentCategory
+    let iconSvg = '';
+    const productType = this.catalogPath.find(p => p.catalogId === 'subcategory_miscellaneous');
+    const typeName = productType?.name?.toLowerCase() || '';
+    const currentCat = this.currentCategory || '';
+    
+    if (typeName.includes('celular') || typeName.includes('telefon') || currentCat === 'celulares') {
+      iconSvg = `<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+    } else if (typeName.includes('laptop') || typeName.includes('computadora') || currentCat === 'laptops') {
+      iconSvg = `<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>`;
+    } else if (typeName.includes('tablet') || typeName.includes('tableta') || currentCat === 'tablets') {
+      iconSvg = `<rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+    } else if (typeName.includes('consola') || currentCat === 'consoles') {
+      iconSvg = `<rect x="2" y="6" width="20" height="12" rx="6" /><path d="M6 12h4m-2-2v4"/><circle cx="15.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>`;
+    } else if (typeName.includes('pantalla') || typeName.includes('monitor')) {
+      iconSvg = `<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>`;
+    } else if (typeName.includes('smartwatch') || typeName.includes('reloj') || currentCat === 'smartwatch') {
+      iconSvg = `<circle cx="12" cy="12" r="7"/><polyline points="12 6 12 12 16 14"/>`;
+    } else {
+      iconSvg = `<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/>`;
+    }
+    
+    const renderList = (items) => {
+      featuresList.innerHTML = '';
+      if (items.length === 0) {
+        featuresList.innerHTML = '<div class="no-results">No se encontraron características</div>';
+        return;
+      }
+      
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'brand-list-item model-list-item';
+        row.innerHTML = `
+          <div class="model-info">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              ${iconSvg}
+            </svg>
+            <span>${item.name}</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        `;
+        row.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.selectCatalogItem(item, catalog.catalog_id);
+        });
+        featuresList.appendChild(row);
+      });
+    };
+    
+    renderList(catalog.data);
+    wrapper.appendChild(featuresList);
+    container.appendChild(wrapper);
+    
+    searchInput.addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      if (term === '') {
+        renderList(catalog.data);
+      } else {
+        const filtered = catalog.data.filter(item => item.name.toLowerCase().includes(term));
+        renderList(filtered);
+      }
+    });
+  }
+
   renderBrandSelection(catalog, container) {
     // Limpiar contenedor
     container.innerHTML = '';
@@ -1123,9 +1337,13 @@ class CotizadorApp {
     // Definir marcas populares según la categoría
     let popularBrands = [];
     
-    // Verificar si es flujo de consolas
+    // Verificar si es flujo de consolas, tablets o laptops
     const isConsoleBrand = this.currentCategory === 'consoles' || 
                            this.catalogPath.some(p => p.name && p.name.toLowerCase().includes('consola'));
+    const isTabletBrand = this.currentCategory === 'tablets' || 
+                          this.catalogPath.some(p => p.name && p.name.toLowerCase().includes('tablet'));
+    const isLaptopBrand = this.currentCategory === 'laptops' || 
+                          this.catalogPath.some(p => p.name && p.name.toLowerCase().includes('laptop'));
     
     if (isConsoleBrand) {
       // Marcas populares de consolas
@@ -1179,8 +1397,18 @@ class CotizadorApp {
       popularGrid.style.marginBottom = '20px';
       popularGrid.style.maxWidth = '100%';
       
-      // Obtener URLs de imágenes desde la configuración pasada por Liquid
-      const brandImages = this.config?.brandImages || {};
+      // Obtener URLs de imágenes según el tipo de producto
+      let brandImages = this.config?.brandImages || {};
+      
+      // Si es flujo de tablets, usar imágenes de tablets
+      if (isTabletBrand && this.config?.brandImagesTablet) {
+        brandImages = { ...brandImages, ...this.config.brandImagesTablet };
+      }
+      
+      // Si es flujo de laptops, usar imágenes de laptops
+      if (isLaptopBrand && this.config?.brandImagesLaptop) {
+        brandImages = { ...brandImages, ...this.config.brandImagesLaptop };
+      }
       
       popularItems.forEach(({ item, index, config }) => {
         const btn = document.createElement('button');
@@ -1343,11 +1571,24 @@ class CotizadorApp {
       items.forEach(item => {
         const row = document.createElement('div');
         row.className = 'brand-list-item model-list-item';
+        // Determinar icono según currentCategory
+        let modelIcon = '';
+        if (this.currentCategory === 'celulares') {
+          modelIcon = `<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+        } else if (this.currentCategory === 'laptops') {
+          modelIcon = `<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>`;
+        } else if (this.currentCategory === 'tablets') {
+          modelIcon = `<rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+        } else if (this.currentCategory === 'consoles') {
+          modelIcon = `<rect x="2" y="6" width="20" height="12" rx="6" /><path d="M6 12h4m-2-2v4"/><circle cx="15.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>`;
+        } else {
+          modelIcon = `<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>`;
+        }
+        
         row.innerHTML = `
           <div class="model-info">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-              <line x1="12" y1="18" x2="12.01" y2="18"/>
+              ${modelIcon}
             </svg>
             <span>${item.name}</span>
           </div>
@@ -1421,12 +1662,29 @@ class CotizadorApp {
     const currentStep = this.catalogPath.length;
     const totalSteps = 7; // Ajustar según tu flujo
     
-    // Determinar el título de la característica
-    const featureTitles = {
-      'feature_1_catalog': 'Almacenamiento',
-      'feature_2_catalog': 'Memoria RAM',
-      'feature_3_catalog': 'Estado'
-    };
+    // Determinar el título de la característica según el tipo de producto
+    const productType = this.catalogPath.find(p => p.catalogId === 'subcategory_miscellaneous');
+    const typeName = productType?.name?.toLowerCase() || '';
+    const currentCat = this.currentCategory || '';
+    
+    let featureTitles = {};
+    
+    // Títulos específicos para laptops
+    if (typeName.includes('laptop') || currentCat === 'laptops') {
+      featureTitles = {
+        'feature_1_catalog': 'Almacenamiento',
+        'feature_2_catalog': 'Memoria RAM',
+        'feature_3_catalog': 'Procesador'
+      };
+    } else {
+      // Títulos genéricos para otros productos
+      featureTitles = {
+        'feature_1_catalog': 'Característica 1',
+        'feature_2_catalog': 'Característica 2',
+        'feature_3_catalog': 'Característica 3'
+      };
+    }
+    
     const featureTitle = featureTitles[catalog.catalog_id] || 'Selecciona una opción';
     
     // Iconos para cada tipo de característica
@@ -1484,7 +1742,7 @@ class CotizadorApp {
           prevBadge.className = 'selected-feature-badge';
           prevBadge.innerHTML = `
             <div class="feature-check-icon"></div>
-            <span>${feature1.name} Seleccionado</span>
+            <span>${feature1.name}</span>
           `;
           wrapper.appendChild(prevBadge);
         }
@@ -1498,7 +1756,7 @@ class CotizadorApp {
           prevBadge1.className = 'selected-feature-badge';
           prevBadge1.innerHTML = `
             <div class="feature-check-icon"></div>
-            <span>${feature1.name} Seleccionado</span>
+            <span>${feature1.name}</span>
           `;
           wrapper.appendChild(prevBadge1);
         }
@@ -1508,7 +1766,7 @@ class CotizadorApp {
           prevBadge2.className = 'selected-feature-badge';
           prevBadge2.innerHTML = `
             <div class="feature-check-icon"></div>
-            <span>${feature2.name} Seleccionado</span>
+            <span>${feature2.name}</span>
           `;
           wrapper.appendChild(prevBadge2);
         }
@@ -1702,27 +1960,15 @@ class CotizadorApp {
   }
 
   renderMetalCalculator(catalog, container) {
-    // Limpiar contenedor
+    // Homologar con el diseño de los demás flujos
     container.innerHTML = '';
     
-    // Activar modo de una sola columna en el layout padre
-    const layoutContainer = container.closest('.catalog-layout-v2');
-    if (layoutContainer) {
-      layoutContainer.classList.add('single-column-mode');
-    }
-    
-    // Ocultar panel de detalles explícitamente
-    const detailsPanel = document.querySelector('.catalog-details-panel');
-    if (detailsPanel) {
-      detailsPanel.style.setProperty('display', 'none', 'important');
-    }
-    
     const isGold = catalog.catalog_id === 'metal_gold_catalog';
-    const metalType = isGold ? 'Oro' : 'Plata';
+    const metalType = isGold ? 'oro' : 'plata';
     
     // Crear estructura principal
     const wrapper = document.createElement('div');
-    wrapper.className = 'metal-calculator-wrapper';
+    wrapper.className = 'brand-selection-wrapper';
     
     // Header con botón de volver
     const header = this.createTradeInHeader();
@@ -1732,20 +1978,16 @@ class CotizadorApp {
     const mobileStepper = this.createMobileStepper();
     wrapper.appendChild(mobileStepper);
     
-    // Icono y Título central
-    const hero = document.createElement('div');
-    hero.className = 'metal-hero';
-    hero.innerHTML = `
-      <div class="metal-icon-circle">
-        <img src="${isGold ? 'https://cdn.shopify.com/s/files/1/0556/2630/1521/files/gold-ring-icon.png?v=1710000000' : 'https://cdn.shopify.com/s/files/1/0556/2630/1521/files/silver-ring-icon.png?v=1710000000'}" alt="${metalType}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-        <svg style="display:none; width: 48px; height: 48px;" viewBox="0 0 24 24" fill="none" stroke="${isGold ? '#fbbf24' : '#9ca3af'}" stroke-width="1.5">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M12 7v10M8 12h8"/>
-        </svg>
-      </div>
-      <h2 class="metal-title">${metalType}</h2>
-    `;
-    wrapper.appendChild(hero);
+    // Título
+    const title = document.createElement('h3');
+    title.className = 'brand-selection-title';
+    title.textContent = `Selecciona las características de tu pieza de ${metalType}`;
+    wrapper.appendChild(title);
+    
+    const subtitle = document.createElement('p');
+    subtitle.className = 'brand-selection-subtitle';
+    subtitle.textContent = 'Elige el kilataje y el peso de tu pieza.';
+    wrapper.appendChild(subtitle);
     
     // Grid de 2 columnas para inputs
     const inputGrid = document.createElement('div');
@@ -1773,23 +2015,15 @@ class CotizadorApp {
     
     wrapper.appendChild(inputGrid);
     
-    // Botones de acción
-    const actionRow = document.createElement('div');
-    actionRow.className = 'metal-action-row';
-    
-    const simulateBtn = document.createElement('button');
-    simulateBtn.className = 'metal-btn-secondary';
-    simulateBtn.textContent = 'SIMULAR OTRO ARTÍCULO';
-    simulateBtn.onclick = () => this.resetCatalog();
-    
+    // Botón de acción
     const calculateBtn = document.createElement('button');
     calculateBtn.className = 'metal-btn-primary';
+    calculateBtn.style.width = '100%';
+    calculateBtn.style.marginTop = '12px';
     calculateBtn.textContent = '¡QUIERO MI PRÉSTAMO!';
     calculateBtn.disabled = true; // Deshabilitado por defecto
     
-    actionRow.appendChild(simulateBtn);
-    actionRow.appendChild(calculateBtn);
-    wrapper.appendChild(actionRow);
+    wrapper.appendChild(calculateBtn);
     
     container.appendChild(wrapper);
     
@@ -1834,6 +2068,12 @@ class CotizadorApp {
         catalogId: catalog.catalog_id,
         userWeight: weight
       });
+      
+      // Ocultar el contenedor de dropdowns (que contiene el formulario de oro)
+      const dropdownsContainer = document.getElementById(`catalog-dropdowns-${this.blockId}`);
+      if (dropdownsContainer) {
+        dropdownsContainer.style.display = 'none';
+      }
       
       // Mostrar loader
       const loadingDiv = document.getElementById(`loading-${this.blockId}`);
@@ -2501,19 +2741,23 @@ class CotizadorApp {
       
       const loanResult = await loanResponse.json();
       
-      // Ocultar loader y mensaje antes de mostrar resultados
-      if (loadingDiv) {
-        loadingDiv.style.setProperty('display', 'none', 'important');
+      // Ocultar TODOS los loaders antes de mostrar resultados
+      const allLoaders = document.querySelectorAll(`#loading-${this.blockId}, #screen-transition-loader-${this.blockId}`);
+      allLoaders.forEach(loader => {
+        loader.style.setProperty('display', 'none', 'important');
+        loader.style.setProperty('visibility', 'hidden', 'important');
+        loader.style.setProperty('opacity', '0', 'important');
         
         // Ocultar mensaje de procesamiento si existe
-        const spinnerLoader = loadingDiv.querySelector('.spinner-loader');
+        const spinnerLoader = loader.querySelector('.spinner-loader');
         if (spinnerLoader) {
+          spinnerLoader.style.setProperty('display', 'none', 'important');
           const processingMessage = spinnerLoader.querySelector('.processing-message');
           if (processingMessage) {
             processingMessage.style.setProperty('display', 'none', 'important');
           }
         }
-      }
+      });
       
       this.currentProduct = {
         name: this.catalogPath.map(p => p.name).join(' > '),
@@ -2528,19 +2772,23 @@ class CotizadorApp {
     } catch (error) {
       console.error('Error:', error);
       
-      // Ocultar loader y mensaje en caso de error
-      if (loadingDiv) {
-        loadingDiv.style.setProperty('display', 'none', 'important');
+      // Ocultar TODOS los loaders en caso de error
+      const allLoaders = document.querySelectorAll(`#loading-${this.blockId}, #screen-transition-loader-${this.blockId}`);
+      allLoaders.forEach(loader => {
+        loader.style.setProperty('display', 'none', 'important');
+        loader.style.setProperty('visibility', 'hidden', 'important');
+        loader.style.setProperty('opacity', '0', 'important');
         
         // Ocultar mensaje de procesamiento si existe
-        const spinnerLoader = loadingDiv.querySelector('.spinner-loader');
+        const spinnerLoader = loader.querySelector('.spinner-loader');
         if (spinnerLoader) {
+          spinnerLoader.style.setProperty('display', 'none', 'important');
           const processingMessage = spinnerLoader.querySelector('.processing-message');
           if (processingMessage) {
             processingMessage.style.setProperty('display', 'none', 'important');
           }
         }
-      }
+      });
       
       // Mostrar error en el contenedor de dropdowns
       if (dropdownsContainer) {
@@ -2763,12 +3011,23 @@ class CotizadorApp {
       let modelName = '';
       let brandName = '';
       const characteristics = [];
+      
+      // Detectar si es flujo de metales
+      const isMetalFlow = this.catalogPath.some(p => p.catalogId === 'metal_gold_catalog' || p.catalogId === 'metal_silver_catalog');
 
       this.catalogPath.forEach((item) => {
         if (item.catalogId === 'model_catalog' || item.catalogId === 'model_vehicles') {
           modelName = item.name;
         } else if (item.catalogId === 'brand_catalog' || item.catalogId === 'brand_vehicles') {
           brandName = item.name;
+        } else if (item.catalogId === 'metal_gold_catalog') {
+          modelName = 'Oro';
+          if (item.name) characteristics.push(item.name); // Kilataje
+          if (item.userWeight) characteristics.push(`${item.userWeight} gramos`);
+        } else if (item.catalogId === 'metal_silver_catalog') {
+          modelName = 'Plata';
+          if (item.name) characteristics.push(item.name); // Kilataje
+          if (item.userWeight) characteristics.push(`${item.userWeight} gramos`);
         } else if (item.catalogId && item.catalogId.includes('feature_')) {
           characteristics.push(item.name);
         } else if (item.charat1_id || item.charat2_id || item.charat3_id) {
@@ -3081,32 +3340,31 @@ class CotizadorApp {
     if (appointmentSection) {
       appointmentSection.style.display = 'block';
       
-      // No hacer scroll automático - mantener posición actual
-      
       // Cargar sucursales si no están cargadas
       await this.loadBranches();
       
-      // Configurar fecha mínima (hoy) y validación de domingos
-      const dateInput = document.getElementById(`appointment-date-${this.blockId}`);
-      if (dateInput) {
-        const today = new Date().toISOString().split('T')[0];
-        dateInput.setAttribute('min', today);
-        
-        // Validar que no sea domingo
-        dateInput.addEventListener('input', (e) => {
-          const selectedDate = new Date(e.target.value + 'T00:00:00');
-          const dayOfWeek = selectedDate.getDay();
+      // Generar las próximas 4 fechas disponibles (excluyendo domingos)
+      this.generateDateOptions();
+      
+      // Generar opciones de horario
+      this.generateTimeOptions();
+      
+      // Hacer scroll al inicio después de que todo esté cargado
+      setTimeout(() => {
+        const cotizadorBlock = document.getElementById(`cotizador-${this.blockId}`);
+        if (cotizadorBlock) {
+          const rect = cotizadorBlock.getBoundingClientRect();
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          const targetPosition = rect.top + scrollTop;
           
-          // 0 = Domingo
-          if (dayOfWeek === 0) {
-            alert('No se pueden agendar citas los domingos. Por favor selecciona otro día.');
-            e.target.value = '';
-            return;
-          }
-          
-          this.log('✅ Fecha seleccionada válida:', e.target.value, 'Día:', dayOfWeek);
-        });
-      }
+          window.scrollTo({ 
+            top: targetPosition, 
+            behavior: 'smooth' 
+          });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 100);
       
       // Configurar botón volver a pagos
       const btnBackToLoan = document.getElementById(`btn-back-to-loan-${this.blockId}`);
@@ -3134,8 +3392,9 @@ class CotizadorApp {
   }
 
   async loadBranches() {
-    const select = document.getElementById(`branch-select-${this.blockId}`);
-    if (!select) return;
+    const branchSelect = document.getElementById(`branch-select-${this.blockId}`);
+    const stateSelect = document.getElementById(`state-select-${this.blockId}`);
+    if (!branchSelect || !stateSelect) return;
     
     try {
       const response = await fetch('/apps/cotizador/branches');
@@ -3143,25 +3402,169 @@ class CotizadorApp {
         throw new Error('Error cargando sucursales');
       }
       
-      const branches = await response.json();
+      const data = await response.json();
       
-      if (branches.length > 0) {
-        select.innerHTML = '<option value="">Selecciona una sucursal</option>';
-        branches.forEach(branch => {
+      // El endpoint devuelve { states, branchesByState }
+      if (data.states && data.states.length > 0) {
+        // Guardar sucursales para filtrado
+        this.branchesByState = data.branchesByState || {};
+        this.allBranches = data.branches || [];
+        
+        // Llenar selector de estados
+        stateSelect.innerHTML = '<option value="">Selecciona tu estado</option>';
+        data.states.forEach(state => {
           const option = document.createElement('option');
-          option.value = branch.ID_SUC || branch.id_suc || '';
-          const branchName = branch['NOMBRE DE SUCURSAL'] || branch.nombre_sucursal || branch.name || 'Sucursal';
-          const estado = branch.ESTADO || branch.estado || '';
-          option.textContent = `${branchName}${estado ? ' - ' + estado : ''}`;
-          select.appendChild(option);
+          option.value = state;
+          option.textContent = state;
+          stateSelect.appendChild(option);
         });
+        
+        // Configurar listener para filtrar sucursales por estado
+        stateSelect.addEventListener('change', (e) => {
+          const selectedState = e.target.value;
+          
+          if (selectedState) {
+            // Habilitar selector de sucursales y llenar con las del estado seleccionado
+            branchSelect.disabled = false;
+            branchSelect.innerHTML = '<option value="">Selecciona una sucursal</option>';
+            
+            const branchesInState = this.branchesByState[selectedState] || [];
+            branchesInState.forEach(branch => {
+              const option = document.createElement('option');
+              option.value = branch.id || branch.ID_SUC || branch.id_suc || '';
+              let branchName = branch.name || branch['NOMBRE DE SUCURSAL'] || branch.nombre_sucursal || 'Sucursal';
+              
+              // Homologar a capitalización consistente (Primera Letra Mayúscula de cada palabra)
+              branchName = branchName.toLowerCase().split(' ').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+              ).join(' ');
+              
+              option.textContent = branchName;
+              branchSelect.appendChild(option);
+            });
+          } else {
+            // Deshabilitar si no hay estado seleccionado
+            branchSelect.disabled = true;
+            branchSelect.innerHTML = '<option value="">Primero selecciona un estado</option>';
+          }
+        });
+        
       } else {
-        select.innerHTML = '<option value="">No hay sucursales disponibles</option>';
+        stateSelect.innerHTML = '<option value="">No hay estados disponibles</option>';
+        branchSelect.innerHTML = '<option value="">No hay sucursales disponibles</option>';
       }
     } catch (error) {
       console.error('Error cargando sucursales:', error);
-      select.innerHTML = '<option value="">Error cargando sucursales</option>';
+      stateSelect.innerHTML = '<option value="">Error cargando estados</option>';
+      branchSelect.innerHTML = '<option value="">Error cargando sucursales</option>';
     }
+  }
+
+  generateDateOptions() {
+    const dateOptionsContainer = document.getElementById(`date-options-${this.blockId}`);
+    const dateHiddenInput = document.getElementById(`appointment-date-${this.blockId}`);
+    if (!dateOptionsContainer) return;
+    
+    dateOptionsContainer.innerHTML = '';
+    
+    const dates = [];
+    let currentDate = new Date();
+    
+    // Generar las próximas 4 fechas disponibles (excluyendo domingos)
+    while (dates.length < 4) {
+      const dayOfWeek = currentDate.getDay();
+      
+      // Si no es domingo (0), agregar la fecha
+      if (dayOfWeek !== 0) {
+        dates.push(new Date(currentDate));
+      }
+      
+      // Avanzar al siguiente día
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Crear botones para cada fecha
+    dates.forEach((date, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'date-option-btn';
+      
+      // Formatear fecha
+      const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      
+      const dayName = dayNames[date.getDay()];
+      const dayNumber = date.getDate();
+      const monthName = monthNames[date.getMonth()];
+      const dateValue = date.toISOString().split('T')[0];
+      
+      button.innerHTML = `
+        <div class="date-option-day">${dayName}</div>
+        <div class="date-option-date">${dayNumber} ${monthName}</div>
+      `;
+      
+      button.onclick = () => {
+        // Remover clase active de todos los botones
+        dateOptionsContainer.querySelectorAll('.date-option-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        
+        // Agregar clase active al botón seleccionado
+        button.classList.add('active');
+        
+        // Guardar valor en input hidden
+        dateHiddenInput.value = dateValue;
+        
+        this.log('✅ Fecha seleccionada:', dateValue, dayName);
+      };
+      
+      dateOptionsContainer.appendChild(button);
+    });
+  }
+
+  generateTimeOptions() {
+    const timeOptionsContainer = document.getElementById(`time-options-${this.blockId}`);
+    const timeHiddenInput = document.getElementById(`appointment-time-${this.blockId}`);
+    if (!timeOptionsContainer) return;
+    
+    timeOptionsContainer.innerHTML = '';
+    
+    // Horarios disponibles de 9 AM a 5 PM
+    const times = [
+      { value: '09:00', label: '09:00 AM' },
+      { value: '10:00', label: '10:00 AM' },
+      { value: '11:00', label: '11:00 AM' },
+      { value: '12:00', label: '12:00 PM' },
+      { value: '13:00', label: '01:00 PM' },
+      { value: '14:00', label: '02:00 PM' },
+      { value: '15:00', label: '03:00 PM' },
+      { value: '16:00', label: '04:00 PM' },
+      { value: '17:00', label: '05:00 PM' }
+    ];
+    
+    times.forEach(time => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'time-option-btn';
+      button.textContent = time.label;
+      
+      button.onclick = () => {
+        // Remover clase active de todos los botones
+        timeOptionsContainer.querySelectorAll('.time-option-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        
+        // Agregar clase active al botón seleccionado
+        button.classList.add('active');
+        
+        // Guardar valor en input hidden
+        timeHiddenInput.value = time.value;
+        
+        this.log('✅ Hora seleccionada:', time.value);
+      };
+      
+      timeOptionsContainer.appendChild(button);
+    });
   }
 
   showContactFormStep2() {
