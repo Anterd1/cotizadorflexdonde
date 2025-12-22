@@ -2915,6 +2915,31 @@ class CotizadorApp {
       // Remover listeners anteriores si existen
       const newBtnFijo = btnFijo.cloneNode(true);
       btnFijo.parentNode.replaceChild(newBtnFijo, btnFijo);
+      
+      // Si es categoría de oro (metals), cambiar el texto a "FlexDondé" y agregar logo
+      const isGoldCategory = this.currentCategory === 'metals' || 
+                            this.catalogPath.some(item => 
+                              item.catalogId === 'metal_gold_catalog' || 
+                              item.catalogId === 'metal_silver_catalog'
+                            );
+      
+      if (isGoldCategory) {
+        // Limpiar contenido y agregar logo + texto
+        newBtnFijo.innerHTML = '';
+        const logoImg = document.createElement('img');
+        logoImg.src = this.config.flexdondeLogo || '';
+        logoImg.alt = 'FlexDondé';
+        logoImg.style.width = '20px';
+        logoImg.style.height = '20px';
+        logoImg.style.marginRight = '6px';
+        logoImg.style.verticalAlign = 'middle';
+        logoImg.style.objectFit = 'contain';
+        logoImg.style.display = 'inline-block';
+        newBtnFijo.appendChild(logoImg);
+        newBtnFijo.appendChild(document.createTextNode('FlexDondé'));
+        newBtnFijo.classList.add('flexdonde-btn');
+      }
+      
       newBtnFijo.addEventListener('click', () => this.selectPlan('fijo'));
     }
     
